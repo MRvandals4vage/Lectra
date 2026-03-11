@@ -1,0 +1,5 @@
+{
+  "name": "Nexus Classroom",
+  "description": "A high-end virtual classroom platform powered by AI insights and seamless collaboration.",
+  "requestFramePermissions": ["camera", "microphone"]
+}
