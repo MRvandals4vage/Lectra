@@ -1,7 +1,7 @@
 import { Response } from 'express';
-import { query } from '../config/db';
-import { AuthRequest } from '../middleware/auth';
-import { uploadFileToSupabase } from '../utils/upload';
+import { supabase } from '../config/supabase.js';
+import { AuthRequest } from '../middleware/auth.js';
+import { uploadFileToSupabase } from '../utils/upload.js';
 
 export const createAssignment = async (req: AuthRequest, res: Response) => {
   if (req.user?.role !== 'teacher') {
@@ -11,12 +11,24 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
   const { classId, title, description, dueDate, maxScore } = req.body;
 
   try {
-    const result = await query(
-      'INSERT INTO assignments (class_id, title, description, due_date, max_score) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [classId, title, description, dueDate, maxScore]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
+    const { data, error } = await supabase
+      .from('assignments')
+      .insert([
+        { 
+          class_id: classId, 
+          title, 
+          description, 
+          due_date: dueDate, 
+          max_score: maxScore 
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (error: any) {
+    console.error('Create Assignment Error:', error.message);
     res.status(500).json({ message: 'Error creating assignment' });
   }
 };
@@ -24,37 +36,46 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
 export const getAssignmentsByClass = async (req: AuthRequest, res: Response) => {
   const { classId } = req.params;
   try {
-    const result = await query('SELECT * FROM assignments WHERE class_id = $1', [classId]);
-    res.json(result.rows);
-  } catch (error) {
+    const { data, error } = await supabase
+      .from('assignments')
+      .select('*')
+      .eq('class_id', classId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
     res.status(500).json({ message: 'Error fetching assignments' });
   }
 };
 
 export const submitAssignment = async (req: AuthRequest, res: Response) => {
-  if (req.user?.role !== 'student') {
-    return res.status(403).json({ message: 'Only students can submit assignments' });
+  const { assignmentId } = req.body;
+  const file = req.file;
+
+  if (!file) {
+    return res.status(400).json({ message: 'File is required' });
   }
 
-  const { assignmentId } = req.body;
-  let fileUrl = req.body.fileUrl;
-
   try {
-    if (req.file) {
-      fileUrl = await uploadFileToSupabase(req.file, 'submissions');
-    }
+    const fileUrl = await uploadFileToSupabase(file, 'assignments');
 
-    if (!fileUrl) {
-      return res.status(400).json({ message: 'No file or URL provided' });
-    }
+    const { data, error } = await supabase
+      .from('submissions')
+      .upsert([
+        { 
+          assignment_id: assignmentId, 
+          student_id: req.user?.id, 
+          file_url: fileUrl 
+        }
+      ], { onConflict: 'assignment_id,student_id' })
+      .select()
+      .single();
 
-    const result = await query(
-      'INSERT INTO submissions (assignment_id, student_id, file_url) VALUES ($1, $2, $3) RETURNING *',
-      [assignmentId, req.user.id, fileUrl]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Submission error:', error);
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (error: any) {
+    console.error('Submit Assignment Error:', error.message);
     res.status(500).json({ message: 'Error submitting assignment' });
   }
 };

@@ -35,7 +35,7 @@ import axios from 'axios';
 import { useAuth } from './context/AuthContext';
 import { cn } from './lib/utils';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002';
 const socket = io(API_URL);
 
 export default function MeetingRoom({ roomId, onLeave }: { roomId: string, onLeave: () => void }) {

@@ -3,34 +3,59 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRoutes from './routes/auth';
-import classRoutes from './routes/classes';
-import assignmentRoutes from './routes/assignments';
-import meetingRoutes from './routes/meetings';
-import gradeRoutes from './routes/grading';
+import authRoutes from './routes/auth.js';
+import classRoutes from './routes/classes.js';
+import assignmentRoutes from './routes/assignments.js';
+import meetingRoutes from './routes/meetings.js';
+import gradeRoutes from './routes/grading.js';
+import './config/db.js';
 
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 const server = http.createServer(app);
 
 const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+console.log('--- BACKEND CONFIG ---');
+console.log('Allowed Frontend Origin:', frontendOrigin);
+console.log('----------------------');
 
 const io = new Server(server, {
   cors: {
-    origin: frontendOrigin,
+    origin: [frontendOrigin, 'http://localhost:3000', 'http://127.0.0.1:3000'],
     methods: ['GET', 'POST'],
     credentials: true
   },
 });
 
 app.use(cors({
-  origin: frontendOrigin,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [frontendOrigin, 'http://localhost:3000', 'http://127.0.0.1:3000'];
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn('CORS Blocked for origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
+
+// Health check
+app.get('/health', (req, res) => res.json({ status: 'ok', origin: frontendOrigin }));
 
 // Routes
 app.use('/auth', authRoutes);
@@ -61,7 +86,20 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+// Error handling
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
+
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('SERVER ERROR:', err);
+  res.status(500).json({ 
+    message: 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+const PORT = process.env.PORT || 5001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

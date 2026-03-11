@@ -38,7 +38,7 @@ import { useAuth } from './context/AuthContext';
 import axios from 'axios';
 import { cn } from './lib/utils';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002';
 
 const data = [
   { name: 'Week 1', value: 60 },

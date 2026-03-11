@@ -1,7 +1,7 @@
 import express from 'express';
-import { createMeeting, getMeetingsByClass, getToken } from '../controllers/meetings';
-import { analyzeMeeting } from '../controllers/analysis';
-import { authenticateToken } from '../middleware/auth';
+import { createMeeting, getMeetingsByClass, getToken } from '../controllers/meetings.js';
+import { analyzeMeeting } from '../controllers/analysis.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 

@@ -1,6 +1,6 @@
 import express from 'express';
-import { createClass, getClasses, getClassById, joinClass } from '../controllers/classes';
-import { authenticateToken } from '../middleware/auth';
+import { createClass, getClasses, getClassById, joinClass } from '../controllers/classes.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
