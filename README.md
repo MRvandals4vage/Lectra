@@ -2,8 +2,6 @@
 
 Nexus Classroom is a state-of-the-art, full-stack Virtual Classroom Platform designed to provide a premium and interactive learning experience. It combines high-performance video conferencing, real-time collaboration, and AI-powered educational insights.
 
-![Nexus Classroom Banner](https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6)
-
 ## 🚀 Key Features
 
 - **High-End Video Meetings**: Powered by **LiveKit WebRTC** for low-latency video and audio, featuring participant grid layouts and active speaker tracking.
