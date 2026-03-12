@@ -22,8 +22,10 @@ import {
   Zap, 
   MessageSquare,
   TrendingUp,
-  FileUp
+  FileUp,
+  Sparkles
 } from 'lucide-react';
+
 import { 
   BarChart, 
   Bar, 
@@ -55,41 +57,42 @@ const data = [
   { name: 'Week 10', value: 55 },
 ];
 
-export default function Dashboard({ 
-  onStartClass,
-  activeTab,
-  internalView,
-  activeCourse,
-  handleTabChange,
-  handleViewCourse
-}: { 
-  onStartClass: (roomId: string) => void;
-  activeTab: string;
-  internalView: "main" | "workspace";
-  activeCourse: any;
-  handleTabChange: (tab: string) => void;
-  handleViewCourse: (course: any) => void;
-}) {
+import CreateClassModal from './components/CreateClassModal';
+import StudyRooms from './components/StudyRooms';
+import RevisionHub from './components/RevisionHub';
+import AiLecturePlanner from './components/AiLecturePlanner';
+import AiStudyPlanner from './components/AiStudyPlanner';
+import AiAssistant from './components/AiAssistant';
+import ReactMarkdown from 'react-markdown';
+
+export default function Dashboard({ onStartClass }: { onStartClass: (roomId: string) => void }) {
   const { user, logout } = useAuth();
   const [classes, setClasses] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [showJoinModal, setShowJoinModal] = React.useState(false);
   const [classCode, setClassCode] = React.useState('');
-  const [newClassTitle, setNewClassTitle] = React.useState('');
-  const [newClassDesc, setNewClassDesc] = React.useState('');
-
+  
   const [selectedClass, setSelectedClass] = React.useState<any>(null);
+  const [classAnalytics, setClassAnalytics] = React.useState<any>(null);
   const [assignments, setAssignments] = React.useState<any[]>([]);
   const [showAssignmentModal, setShowAssignmentModal] = React.useState(false);
   const [showSubmitModal, setShowSubmitModal] = React.useState(false);
   const [selectedAssignment, setSelectedAssignment] = React.useState<any>(null);
   const [assignmentFile, setAssignmentFile] = React.useState<File | null>(null);
-  const [newAssignment, setNewAssignment] = React.useState({ title: '', description: '', dueDate: '', maxScore: 100 });
+  const [newAssignment, setNewAssignment] = React.useState({ 
+    title: '', 
+    description: '', 
+    dueDate: '', 
+    maxScore: 100,
+    rubric: [] as any[],
+    latePenaltyRule: {} as any
+  });
   const [submissions, setSubmissions] = React.useState<any[]>([]);
   const [showGradingModal, setShowGradingModal] = React.useState(false);
   const [selectedSubmission, setSelectedSubmission] = React.useState<any>(null);
   const [gradingInfo, setGradingInfo] = React.useState({ grade: 0, feedback: '' });
+  const [currentTab, setCurrentTab] = React.useState('Dashboard');
 
   React.useEffect(() => {
     fetchClasses();
@@ -99,6 +102,7 @@ export default function Dashboard({
     if (selectedClass) {
       fetchAssignments(selectedClass.id);
       fetchSubmissions(selectedClass.id);
+      fetchAnalytics(selectedClass.id);
     }
   }, [selectedClass]);
 
@@ -113,6 +117,15 @@ export default function Dashboard({
       console.error('Error fetching classes:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAnalytics = async (classId: string) => {
+    try {
+      const res = await axios.get(`${API_URL}/classes/${classId}/analytics`);
+      setClassAnalytics(res.data);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
     }
   };
 
@@ -134,16 +147,38 @@ export default function Dashboard({
     }
   };
 
-  const handleCreateClass = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateClass = async (classData: any) => {
     try {
-      await axios.post(`${API_URL}/classes`, { title: newClassTitle, description: newClassDesc });
-      setNewClassTitle('');
-      setNewClassDesc('');
+      await axios.post(`${API_URL}/classes`, classData);
       setShowCreateModal(false);
       fetchClasses();
     } catch (err) {
       alert('Error creating class');
+    }
+  };
+
+  const handleArchiveClass = async (classId: string, archived: boolean) => {
+    try {
+      await axios.patch(`${API_URL}/classes/${classId}/archive`, { archived });
+      fetchClasses();
+      if (selectedClass?.id === classId) setSelectedClass(null);
+    } catch (err) {
+      alert('Error updating class status');
+    }
+  };
+
+  const handleAiSuggestGrade = async (submissionId: string) => {
+    setIsAiGrading(true);
+    try {
+      const res = await axios.get(`${API_URL}/assignments/submissions/${submissionId}/ai-grade`);
+      setGradingInfo({
+        grade: res.data.suggestedScore,
+        feedback: res.data.feedback
+      });
+    } catch (err) {
+      alert('AI Grading failed');
+    } finally {
+      setIsAiGrading(false);
     }
   };
 
@@ -205,6 +240,7 @@ export default function Dashboard({
       alert('Error grading');
     }
   };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background-dark">
       {/* Sidebar */}
@@ -224,9 +260,11 @@ export default function Dashboard({
             { icon: LayoutDashboard, label: 'Dashboard' },
             { icon: BookOpen, label: 'Classes' },
             { icon: FileText, label: 'Assignments' },
-            { icon: Users, label: 'Students' },
-            { icon: LineChart, label: 'Analytics' },
+            { icon: Users, label: user?.role === 'teacher' ? 'Students' : 'Study Rooms' },
+            { icon: user?.role === 'teacher' ? Zap : Sparkles, label: user?.role === 'teacher' ? 'Course Design' : 'Smart Planner' },
+            { icon: LineChart, label: user?.role === 'teacher' ? 'Analytics' : 'Revision Hub' },
             { icon: Settings, label: 'Settings' },
+
           ].map((item) => (
             <button 
               key={item.label}
@@ -241,6 +279,7 @@ export default function Dashboard({
             </button>
           ))}
         </nav>
+
 
         <div className="p-4 mt-auto">
           <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
@@ -331,7 +370,7 @@ export default function Dashboard({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <MetricCard 
                 icon={Radio} 
-                value="02" 
+                value={classes.filter(c => !c.is_archived).length.toString().padStart(2, '0')} 
                 label="Active Classrooms" 
                 color="emerald" 
                 live 
@@ -345,8 +384,15 @@ export default function Dashboard({
                 color="orange" 
                 progress={submissions.length > 0 ? Math.round((submissions.filter(s => s.grade).length / submissions.length) * 100) : 0} 
               />
-              <MetricCard icon={LineChart} value="94%" label="Avg. Engagement" color="purple" trend="+4.2% from last week" />
+              <MetricCard 
+                icon={LineChart} 
+                value={classAnalytics ? `${classAnalytics.avgEngagement}%` : "94%"} 
+                label="Avg. Engagement" 
+                color="purple" 
+                trend={classAnalytics ? `${classAnalytics.studentCount} Students Active` : "+4.2% from last week"} 
+              />
             </div>
+
 
             {/* Charts & Timeline */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -540,7 +586,54 @@ export default function Dashboard({
           </div>
         )}
 
-        {internalView === 'main' && activeTab === 'Assignments' && (
+        {(currentTab === 'Analytics' || currentTab === 'Revision Hub') && (
+          <div className="px-8 pb-12 space-y-8">
+            {user?.role === 'teacher' ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-3xl font-extrabold tracking-tight">Class Analytics</h2>
+                    <p className="text-slate-400 mt-1">Deep insights into student engagement and performance.</p>
+                  </div>
+                </div>
+                {/* Analytics components here */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                   <div className="bg-slate-900 p-8 rounded-3xl border border-primary/10 h-80 flex flex-col items-center justify-center text-center">
+                      <TrendingUp className="size-12 text-primary mb-4" />
+                      <h4 className="font-bold">Comparative Performance</h4>
+                      <p className="text-sm text-slate-500 max-w-xs">AI-generated comparison with previous semesters will appear here.</p>
+                   </div>
+                   <div className="h-80">
+                      <WeeklySummaryCard classId={selectedClass?.id} />
+                   </div>
+                </div>
+
+              </>
+            ) : (
+              <RevisionHub classId={selectedClass?.id} />
+            )}
+          </div>
+        )}
+
+        {currentTab === 'Study Rooms' && (
+          <div className="px-8 pb-12">
+            <StudyRooms classId={selectedClass?.id} />
+          </div>
+        )}
+
+        {currentTab === 'Course Design' && (
+          <div className="px-8 pb-12">
+            <AiLecturePlanner />
+          </div>
+        )}
+
+        {currentTab === 'Smart Planner' && (
+          <div className="px-8 pb-12">
+            <AiStudyPlanner classId={selectedClass?.id} />
+          </div>
+        )}
+
+        {currentTab === 'Assignments' && (
           <div className="px-8 pb-12 space-y-8">
             {!selectedClass ? (
               <div className="flex-1 flex flex-col items-center justify-center py-20 text-center">
@@ -706,57 +799,18 @@ export default function Dashboard({
         )}
       </main>
 
+      {user?.role === 'student' && selectedClass && (
+        <AiAssistant classId={selectedClass.id} />
+      )}
+
+
       {/* Create Class Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8"
-            >
-              <h3 className="text-2xl font-bold mb-6">Create New Class</h3>
-              <form onSubmit={handleCreateClass} className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-400">Class Title</label>
-                  <input 
-                    value={newClassTitle}
-                    onChange={(e) => setNewClassTitle(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 text-white mt-1"
-                    placeholder="e.g. Advanced UI Design"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-400">Description</label>
-                  <textarea 
-                    value={newClassDesc}
-                    onChange={(e) => setNewClassDesc(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 text-white mt-1 h-32"
-                    placeholder="What will students learn?"
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button 
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 py-3 border border-slate-700 rounded-xl font-bold hover:bg-slate-800 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 py-3 bg-primary rounded-xl font-bold text-white hover:brightness-110 transition-all shadow-lg shadow-primary/20"
-                  >
-                    Create
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <CreateClassModal 
+        show={showCreateModal} 
+        onClose={() => setShowCreateModal(false)}
+        onCreate={handleCreateClass}
+      />
+
 
       {/* Join Class Modal */}
       <AnimatePresence>
@@ -937,15 +991,27 @@ export default function Dashboard({
               
               <form onSubmit={handleGradeSubmission} className="space-y-4">
                 <div>
+                <div className="flex justify-between items-center mb-4">
                   <label className="text-sm font-medium text-slate-400">Score (max {selectedSubmission?.assignments.max_score})</label>
-                  <input 
-                    type="number"
-                    value={gradingInfo.grade}
-                    onChange={(e) => setGradingInfo({ ...gradingInfo, grade: parseInt(e.target.value) })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 text-white mt-1"
-                    max={selectedSubmission?.assignments.max_score}
-                    required
-                  />
+                  <button 
+                    type="button"
+                    onClick={() => handleAiSuggestGrade(selectedSubmission.id)}
+                    disabled={isAiGrading}
+                    className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-md font-bold flex items-center gap-1 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+                  >
+                    <Brain className={cn("size-3", isAiGrading && "animate-pulse")} />
+                    {isAiGrading ? "Analyzing..." : "AI Suggest Score"}
+                  </button>
+                </div>
+                <input 
+                  type="number"
+                  value={gradingInfo.grade}
+                  onChange={(e) => setGradingInfo({ ...gradingInfo, grade: parseInt(e.target.value) })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 text-white mt-1"
+                  max={selectedSubmission?.assignments.max_score}
+                  required
+                />
+
                 </div>
                 <div>
                   <label className="text-sm font-medium text-slate-400">Feedback</label>
@@ -1079,3 +1145,50 @@ function FeedbackItem({ name, tag, color, text, img }: any) {
     </div>
   );
 }
+
+function WeeklySummaryCard({ classId }: { classId: string }) {
+  const [summary, setSummary] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5002'}/classroom-extras/ai/weekly-summary`, { classId });
+      setSummary(res.data.summary);
+    } catch (e) {
+      alert('Failed to generate summary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-900 border border-primary/10 rounded-3xl p-6 space-y-4 h-full">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold flex items-center gap-2">
+          <Sparkles className="size-4 text-primary" />
+          AI Weekly Summary
+        </h3>
+        <button 
+          onClick={generate}
+          disabled={loading}
+          className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+        >
+          {loading ? 'Generating...' : 'Generate New'}
+        </button>
+      </div>
+      
+      {summary ? (
+        <div className="prose prose-invert prose-sm max-w-none max-h-60 overflow-y-auto custom-scrollbar p-4 bg-slate-950/50 rounded-2xl border border-white/5">
+           <ReactMarkdown>{summary}</ReactMarkdown>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-3 opacity-50 py-10">
+          <FileText className="size-8" />
+          <p className="text-xs max-w-[200px]">Get a comprehensive overview of last week's lectures and assignments.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
