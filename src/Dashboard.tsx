@@ -44,6 +44,8 @@ import {
 import { useAuth } from './context/AuthContext';
 import axios from 'axios';
 import { cn } from './lib/utils';
+import MyClassesView from './components/MyClassesView';
+import CourseWorkspace from './components/CourseWorkspace';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002';
 
@@ -69,9 +71,6 @@ import AiAssistant from './components/AiAssistant';
 import ReactMarkdown from 'react-markdown';
 
 export default function Dashboard({ onStartClass }: { onStartClass: (roomId: string) => void }) {
-
-
-
   const { user, logout } = useAuth();
   const [classes, setClasses] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -99,7 +98,6 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
   const [selectedSubmission, setSelectedSubmission] = React.useState<any>(null);
   const [gradingInfo, setGradingInfo] = React.useState({ grade: 0, feedback: '' });
   const [currentTab, setCurrentTab] = React.useState('Dashboard');
-  const [isAiGrading, setIsAiGrading] = React.useState(false);
 
   React.useEffect(() => {
     fetchClasses();
@@ -285,10 +283,10 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
           ]).map((item) => (
             <button 
               key={item.label}
-              onClick={() => setCurrentTab(item.label)}
+              onClick={() => handleTabChange(item.label)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors",
-                currentTab === item.label ? "bg-primary/10 text-primary" : "text-slate-400 hover:bg-primary/10 hover:text-primary"
+                activeTab === item.label ? "bg-primary/10 text-primary" : "text-slate-400 hover:bg-primary/10 hover:text-primary"
               )}
             >
               <item.icon className="size-5" />

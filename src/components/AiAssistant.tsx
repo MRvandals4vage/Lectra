@@ -13,7 +13,7 @@ export default function AiAssistant({ classId }: { classId: string }) {
   ]);
   const [input, setInput] = React.useState('');
   const [loading, setLoading] = React.useState(false);
-  const [isOpen, setIsOpen] = React.useState(false);
+  const [isOpen, setIsOpen] = React.useState(false); 
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {

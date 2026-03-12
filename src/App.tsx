@@ -1,29 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import LandingPage from './LandingPage';
-import Dashboard from './Dashboard';
-import MeetingRoom from './MeetingRoom';
-import { AnimatePresence, motion } from 'motion/react';
-import { useAuth } from './context/AuthContext';
-import AuthModal from './components/AuthModal';
+import React, { useState, useEffect } from "react";
+import LandingPage from "./LandingPage";
+import Dashboard from "./Dashboard";
+import MeetingRoom from "./MeetingRoom";
+import { AnimatePresence, motion } from "motion/react";
+import { useAuth } from "./context/AuthContext";
+import AuthModal from "./components/AuthModal";
 
-type Screen = 'landing' | 'dashboard' | 'meeting';
+type Screen = "landing" | "dashboard" | "meeting";
 
 export default function App() {
   const { user, loading } = useAuth();
-  const [screen, setScreen] = useState<Screen>('landing');
+  const [screen, setScreen] = useState<Screen>("landing");
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [selectedRoomId, setSelectedRoomId] = useState<string>("");
+
+  // UI State Management as per requirements
+  const [activeTab, setActiveTab] = useState<string>("Dashboard");
+  const [internalView, setInternalView] = useState<"main" | "workspace">("main");
+  const [activeCourse, setActiveCourse] = useState<any>(null);
 
   const handleStartMeeting = (roomId: string) => {
     setSelectedRoomId(roomId);
-    setScreen('meeting');
+    setScreen("meeting");
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setInternalView("main");
+  };
+
+  const handleViewCourse = (course: any) => {
+    setActiveCourse(course);
+    setInternalView("workspace");
   };
 
   useEffect(() => {
-    if (user && screen === 'landing') {
-      setScreen('dashboard');
-    } else if (!user && screen !== 'landing') {
-      setScreen('landing');
+    if (user && screen === "landing") {
+      setScreen("dashboard");
+    } else if (!user && screen !== "landing") {
+      setScreen("landing");
     }
   }, [user]);
 
@@ -38,7 +53,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background-dark text-slate-100 selection:bg-primary/30">
       <AnimatePresence mode="wait">
-        {screen === 'landing' && (
+        {screen === "landing" && (
           <motion.div
             key="landing"
             initial={{ opacity: 0 }}
@@ -49,18 +64,28 @@ export default function App() {
             <LandingPage onGetStarted={() => setIsAuthModalOpen(true)} />
           </motion.div>
         )}
-        {screen === 'dashboard' && user && (
+        
+        {screen === "dashboard" && user && (
           <motion.div
             key="dashboard"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
+            className="h-full w-full absolute inset-0"
           >
-            <Dashboard onStartClass={handleStartMeeting} />
+            <Dashboard 
+              onStartClass={handleStartMeeting} 
+              activeTab={activeTab}
+              internalView={internalView}
+              activeCourse={activeCourse}
+              handleTabChange={handleTabChange}
+              handleViewCourse={handleViewCourse}
+            />
           </motion.div>
         )}
-        {screen === 'meeting' && user && (
+
+        {screen === "meeting" && user && (
           <motion.div
             key="meeting"
             initial={{ opacity: 0 }}
@@ -68,15 +93,18 @@ export default function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <MeetingRoom roomId={selectedRoomId} onLeave={() => setScreen('dashboard')} />
+            <MeetingRoom
+              roomId={selectedRoomId}
+              onLeave={() => setScreen("dashboard")}
+            />
           </motion.div>
         )}
       </AnimatePresence>
 
-      <AuthModal 
-        isOpen={isAuthModalOpen} 
-        onClose={() => setIsAuthModalOpen(false)} 
-        onSuccess={() => setScreen('dashboard')}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => setScreen("dashboard")}
       />
     </div>
   );
