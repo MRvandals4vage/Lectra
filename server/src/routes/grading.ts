@@ -1,6 +1,6 @@
 import express from 'express';
-import { gradeSubmission } from '../controllers/grading';
-import { authenticateToken, authorizeRole } from '../middleware/auth';
+import { gradeSubmission } from '../controllers/grading.js';
+import { authenticateToken, authorizeRole } from '../middleware/auth.js';
 
 const router = express.Router();
 

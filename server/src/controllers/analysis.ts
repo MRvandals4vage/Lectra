@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../middleware/auth.js';
 
 export const analyzeMeeting = async (req: AuthRequest, res: Response) => {
   const { roomId, transcript } = req.body;

@@ -1,9 +1,9 @@
-import { supabase } from '../config/supabase';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../config/supabase.js';
+import { randomUUID } from 'crypto';
 
 export const uploadFileToSupabase = async (file: Express.Multer.File, bucket: string) => {
   const fileExt = file.originalname.split('.').pop();
-  const fileName = `${uuidv4()}.${fileExt}`;
+  const fileName = `${randomUUID()}.${fileExt}`;
   const filePath = `${fileName}`;
 
   const { data, error } = await supabase.storage

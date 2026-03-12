@@ -81,7 +81,7 @@ FRONTEND_URL=http://localhost:3000
 #### Frontend `.env` (`.env`)
 Create a `.env` file in the root directory:
 ```env
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:5002
 VITE_LIVEKIT_URL=wss://your-project.livekit.cloud
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -100,7 +100,7 @@ npm run dev
 ```
 
 - **Frontend**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://localhost:5000](http://localhost:5000)
+- **Backend API**: [http://localhost:5002](http://localhost:5002)
 
 ## 📁 Repository Structure
 
