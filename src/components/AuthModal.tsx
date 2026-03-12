@@ -27,21 +27,22 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setError('');
     setLoading(true);
 
-    try {
-      const endpoint = isLogin ? '/auth/login' : '/auth/signup';
-      const payload = isLogin ? { email, password } : { name, email, password, role };
+    // Mock authentication for frontend development
+    setTimeout(() => {
+      const mockUser = {
+        id: 'mock-user-id',
+        name: name || 'Demo User',
+        email: email || 'demo@example.com',
+        role: role
+      };
+      const mockToken = 'mock-jwt-token';
       
-      const response = await axios.post(`${API_URL}${endpoint}`, payload);
-      const { user, token } = response.data;
-      
-      login(token, user);
+      login(mockToken, mockUser);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Something went wrong');
-    } finally {
       setLoading(false);
-    }
+    }, 1000);
+    return;
   };
 
   if (!isOpen) return null;

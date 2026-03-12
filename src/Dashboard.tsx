@@ -37,6 +37,8 @@ import {
 import { useAuth } from './context/AuthContext';
 import axios from 'axios';
 import { cn } from './lib/utils';
+import MyClassesView from './components/MyClassesView';
+import CourseWorkspace from './components/CourseWorkspace';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002';
 
@@ -53,7 +55,21 @@ const data = [
   { name: 'Week 10', value: 55 },
 ];
 
-export default function Dashboard({ onStartClass }: { onStartClass: (roomId: string) => void }) {
+export default function Dashboard({ 
+  onStartClass,
+  activeTab,
+  internalView,
+  activeCourse,
+  handleTabChange,
+  handleViewCourse
+}: { 
+  onStartClass: (roomId: string) => void;
+  activeTab: string;
+  internalView: "main" | "workspace";
+  activeCourse: any;
+  handleTabChange: (tab: string) => void;
+  handleViewCourse: (course: any) => void;
+}) {
   const { user, logout } = useAuth();
   const [classes, setClasses] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -74,7 +90,6 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
   const [showGradingModal, setShowGradingModal] = React.useState(false);
   const [selectedSubmission, setSelectedSubmission] = React.useState<any>(null);
   const [gradingInfo, setGradingInfo] = React.useState({ grade: 0, feedback: '' });
-  const [currentTab, setCurrentTab] = React.useState('Dashboard');
 
   React.useEffect(() => {
     fetchClasses();
@@ -215,10 +230,10 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
           ].map((item) => (
             <button 
               key={item.label}
-              onClick={() => setCurrentTab(item.label)}
+              onClick={() => handleTabChange(item.label)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors",
-                currentTab === item.label ? "bg-primary/10 text-primary" : "text-slate-400 hover:bg-primary/10 hover:text-primary"
+                activeTab === item.label ? "bg-primary/10 text-primary" : "text-slate-400 hover:bg-primary/10 hover:text-primary"
               )}
             >
               <item.icon className="size-5" />
@@ -265,7 +280,11 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
           </div>
         </header>
 
-        {currentTab === 'Dashboard' && (
+        {internalView === 'workspace' && activeCourse ? (
+          <CourseWorkspace course={activeCourse} onBack={() => handleTabChange(activeTab)} />
+        ) : internalView === 'main' && activeTab === 'Classes' ? (
+          <MyClassesView classes={classes} handleViewCourse={handleViewCourse} />
+        ) : activeTab === 'Dashboard' && internalView === 'main' && (
           <div className="px-8 pb-12 space-y-8">
             {/* Welcome & Actions */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -427,7 +446,7 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                   </div>
                   <div className="flex items-center justify-between mb-6">
                     <h4 className="text-lg font-bold">Student Submissions</h4>
-                    <button onClick={() => setCurrentTab('Assignments')} className="text-xs text-primary font-bold hover:underline">View All</button>
+                    <button onClick={() => handleTabChange('Assignments')} className="text-xs text-primary font-bold hover:underline">View All</button>
                   </div>
                   <div className="space-y-4 overflow-y-auto pr-2 flex-1">
                     {submissions.length > 0 ? (
@@ -477,7 +496,7 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                 </div>
                 <div className="flex items-center justify-between mb-6">
                   <h4 className="text-lg font-bold">Class Assignments</h4>
-                  <button onClick={() => setCurrentTab('Assignments')} className="text-xs text-primary font-bold hover:underline">Manage All</button>
+                  <button onClick={() => handleTabChange('Assignments')} className="text-xs text-primary font-bold hover:underline">Manage All</button>
                 </div>
                 <div className="space-y-4 overflow-y-auto pr-2 flex-1">
                   {assignments.length > 0 ? (
@@ -521,7 +540,7 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
           </div>
         )}
 
-        {currentTab === 'Assignments' && (
+        {internalView === 'main' && activeTab === 'Assignments' && (
           <div className="px-8 pb-12 space-y-8">
             {!selectedClass ? (
               <div className="flex-1 flex flex-col items-center justify-center py-20 text-center">
@@ -531,7 +550,7 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                 <h3 className="text-2xl font-bold mb-2">No Class Selected</h3>
                 <p className="text-slate-500 max-w-xs">Please select a class from the sidebar or dashboard to manage its assignments.</p>
                 <button 
-                  onClick={() => setCurrentTab('Dashboard')}
+                  onClick={() => handleTabChange('Dashboard')}
                   className="mt-6 px-6 py-2 bg-primary text-white rounded-xl font-bold hover:brightness-110 transition-all"
                 >
                   Go to Dashboard
@@ -676,13 +695,13 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
           </div>
         )}
 
-        {(currentTab !== 'Dashboard' && currentTab !== 'Assignments') && (
+        {internalView === 'main' && (activeTab !== 'Dashboard' && activeTab !== 'Assignments' && activeTab !== 'Classes') && (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
             <div className="size-20 bg-slate-900 rounded-3xl flex items-center justify-center text-slate-700 mb-6 border border-white/5">
               <Settings className="size-10" />
             </div>
             <h3 className="text-2xl font-bold mb-2">Under Construction</h3>
-            <p className="text-slate-500 max-w-xs">The {currentTab} module is coming soon in the next update.</p>
+            <p className="text-slate-500 max-w-xs">The {activeTab} module is coming soon in the next update.</p>
           </div>
         )}
       </main>
