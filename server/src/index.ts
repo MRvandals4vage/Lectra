@@ -8,6 +8,7 @@ import classRoutes from './routes/classes.js';
 import assignmentRoutes from './routes/assignments.js';
 import meetingRoutes from './routes/meetings.js';
 import gradeRoutes from './routes/grading.js';
+import libraryRoutes from './routes/library.js';
 import extrasRoutes from './routes/classroomExtras.js';
 import { analyzeMeeting } from './controllers/analysis.js';
 import { authenticateToken } from './middleware/auth.js';
@@ -70,6 +71,7 @@ app.use('/assignments', assignmentRoutes);
 app.use('/meetings', meetingRoutes);
 app.use('/grade', gradeRoutes);
 app.use('/classroom-extras', extrasRoutes);
+app.use('/library', libraryRoutes);
 app.post('/analyze-meeting', authenticateToken, analyzeMeeting);
 
 // Socket.IO

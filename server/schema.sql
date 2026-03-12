@@ -155,3 +155,15 @@ CREATE TABLE IF NOT EXISTS study_rooms (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Content Library Materials Table
+CREATE TABLE IF NOT EXISTS materials (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'pdf', 'video', 'link', 'image'
+    url TEXT NOT NULL,
+    size TEXT,
+    uploaded_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

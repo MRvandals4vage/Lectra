@@ -98,8 +98,13 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
   const [showGradingModal, setShowGradingModal] = React.useState(false);
   const [selectedSubmission, setSelectedSubmission] = React.useState<any>(null);
   const [gradingInfo, setGradingInfo] = React.useState({ grade: 0, feedback: '' });
-  const [currentTab, setCurrentTab] = React.useState('Dashboard');
+  const [currentTab, setCurrentTab] = React.useState(user?.role === 'teacher' ? 'Dashboard' : 'Classes');
   const [isAiGrading, setIsAiGrading] = React.useState(false);
+  const [showArchived, setShowArchived] = React.useState(false);
+
+  const [materials, setMaterials] = React.useState<any[]>([]);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [classmates, setClassmates] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     fetchClasses();
@@ -110,8 +115,70 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
       fetchAssignments(selectedClass.id);
       fetchSubmissions(selectedClass.id);
       fetchAnalytics(selectedClass.id);
+      fetchMaterials(selectedClass.id);
+      fetchClassmates(selectedClass.id);
     }
   }, [selectedClass]);
+
+  const fetchClassmates = async (classId: string) => {
+    try {
+      const res = await axios.get(`${API_URL}/classes/${classId}/classmates`);
+      setClassmates(res.data);
+    } catch (err) {
+      console.error('Error fetching classmates:', err);
+    }
+  };
+
+  const fetchMaterials = async (classId: string) => {
+    try {
+      const res = await axios.get(`${API_URL}/library/${classId}`);
+      setMaterials(res.data);
+    } catch (err) {
+      console.error('Error fetching materials:', err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedClass) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('classId', selectedClass.id);
+    formData.append('title', file.name);
+    formData.append('type', type);
+
+    setIsUploading(true);
+    try {
+      await axios.post(`${API_URL}/library`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      fetchMaterials(selectedClass.id);
+    } catch (err) {
+      console.error('Upload failed:', err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const archiveClass = async (id: string, archived: boolean) => {
+    try {
+      await axios.patch(`${API_URL}/classes/${id}/archive`, { archived });
+      fetchClasses();
+    } catch (err) {
+      console.error('Archive failed:', err);
+    }
+  };
+
+  const deleteClass = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this class? This cannot be undone.')) return;
+    try {
+      await axios.delete(`${API_URL}/classes/${id}`);
+      fetchClasses();
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+  };
 
   const fetchClasses = async () => {
     try {
@@ -236,7 +303,7 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
   const handleGradeSubmission = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_URL}/grade`, {
+      await axios.post(`${API_URL}/assignments/grade`, {
         submissionId: selectedSubmission.id,
         ...gradingInfo
       });
@@ -274,10 +341,10 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
             { icon: Library, label: 'Content Library' },
             { icon: Settings, label: 'Settings' },
           ] : [
-            { icon: LayoutDashboard, label: 'Dashboard' },
             { icon: BookOpen, label: 'Classes' },
+            { icon: LayoutDashboard, label: 'Dashboard' },
             { icon: FileText, label: 'Assignments' },
-            { icon: Users, label: 'Study Rooms' },
+            { icon: Users, label: 'Students' },
             { icon: Sparkles, label: 'Smart Planner' },
             { icon: LineChart, label: 'Revision Hub' },
             { icon: Library, label: 'Content Library' },
@@ -751,7 +818,10 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                                     location={`Join Code: ${cls.class_code}`} 
                                     active={selectedClass?.id === cls.id} 
                                     last={idx === classes.length - 1}
-                                    onClick={() => setSelectedClass(cls)}
+                                    onClick={() => {
+                                      setSelectedClass(cls);
+                                      setCurrentTab('Students');
+                                    }}
                                   />
                                 ))
                               ) : (
@@ -1045,7 +1115,25 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                 return (
                    <div className="px-8 pb-12">
                      {user?.role === 'student' ? (
-                        <StudyRooms classId={selectedClass?.id} />
+                        <div className="space-y-12">
+                          <div>
+                            <h2 className="text-3xl font-extrabold tracking-tight mb-6">Classmates</h2>
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                              {classmates.map((c) => (
+                                <div key={c.id} className="flex flex-col items-center p-4 bg-slate-900 shadow-sm rounded-3xl border border-white/5 hover:border-primary/30 transition-all cursor-default">
+                                  <img 
+                                    src={`https://ui-avatars.com/api/?name=${c.name}&background=random`} 
+                                    className="size-16 rounded-2xl mb-3 shadow-inner" 
+                                    alt={c.name} 
+                                  />
+                                  <p className="text-xs font-bold text-center truncate w-full">{c.name}</p>
+                                  <p className="text-[10px] text-slate-500 truncate w-full text-center">{c.email}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <StudyRooms classId={selectedClass?.id} />
+                        </div>
                      ) : (
                         <div className="space-y-6">
                            <div className="flex justify-between items-center">
@@ -1228,31 +1316,61 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                         <p className="text-slate-400 mt-1">Manage learning assets and recorded knowledge.</p>
                       </div>
                       {user?.role === 'teacher' && (
-                        <button className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20">
-                           <FileUp className="size-5" />
-                           Upload New Materials
-                        </button>
+                        <div className="relative">
+                          <input 
+                            type="file" 
+                            id="library-upload" 
+                            className="hidden" 
+                            onChange={(e) => handleFileUpload(e, 'other')}
+                          />
+                          <button 
+                            disabled={isUploading}
+                            onClick={() => document.getElementById('library-upload')?.click()}
+                            className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
+                          >
+                            <FileUp className="size-5" />
+                            {isUploading ? 'Uploading...' : 'Upload New Materials'}
+                          </button>
+                        </div>
                       )}
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                       {[
-                         { name: 'Slides-W4.pdf', type: 'PDF', size: '12MB', icon: FileText },
-                         { name: 'Architecture.png', type: 'IMG', size: '4MB', icon: Folder },
-                         { name: 'Case-Study-V2.doc', type: 'DOC', size: '1MB', icon: FileText },
-                         { name: 'Lecture-Record.mp4', type: 'VID', size: '890MB', icon: Video },
-                       ].map((item, i) => (
-                         <div key={i} className="bg-slate-900 border border-white/5 rounded-3xl p-6 hover:border-primary/40 transition-all group cursor-pointer text-center">
-                            <div className="size-16 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 mx-auto mb-4 group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
-                               <item.icon className="size-8" />
-                            </div>
-                            <h5 className="font-bold text-xs truncate mb-1">{item.name}</h5>
-                            <p className="text-[10px] font-bold text-slate-600 uppercase">{item.type} • {item.size}</p>
+                       {materials.length > 0 ? materials.map((item) => (
+                         <div key={item.id} className="bg-slate-900 border border-white/5 rounded-3xl p-6 hover:border-primary/40 transition-all group cursor-pointer text-center relative">
+                            {user?.role === 'teacher' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm('Delete this material?')) {
+                                    axios.delete(`${API_URL}/library/${item.id}`).then(() => fetchMaterials(selectedClass.id));
+                                  }
+                                }}
+                                className="absolute top-2 right-2 p-1 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Plus className="size-4 rotate-45" />
+                              </button>
+                            )}
+                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+                              <div className="size-16 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 mx-auto mb-4 group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
+                                {item.type === 'video' ? <Video className="size-8" /> : <FileText className="size-8" />}
+                              </div>
+                              <h5 className="font-bold text-xs truncate mb-1">{item.title}</h5>
+                              <p className="text-[10px] font-bold text-slate-600 uppercase">{item.type} • {item.size}</p>
+                            </a>
                          </div>
-                       ))}
-                       {user?.role === 'teacher' && (
-                         <button className="border-2 border-dashed border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center text-slate-700 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all group">
+                       )) : (
+                         <div className="col-span-full py-20 text-center bg-slate-900/30 rounded-3xl border border-white/5">
+                            <Library className="size-12 text-slate-700 mx-auto mb-4" />
+                            <p className="text-slate-500 text-sm">No materials uploaded for this class yet.</p>
+                         </div>
+                       )}
+                       {user?.role === 'teacher' && materials.length > 0 && (
+                         <button 
+                          onClick={() => document.getElementById('library-upload')?.click()}
+                          className="border-2 border-dashed border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center text-slate-700 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all group"
+                         >
                             <Plus className="size-10 mb-2 group-hover:scale-110 transition-transform" />
-                            <p className="text-[10px] font-bold uppercase">New Collection</p>
+                            <p className="text-[10px] font-bold uppercase">Add More</p>
                          </button>
                        )}
                     </div>
@@ -1271,7 +1389,6 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                   </div>
                 );
               case 'Settings':
-              case 'Classes':
                 return (
                   <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
                     <div className="size-20 bg-slate-900 rounded-3xl flex items-center justify-center text-slate-700 mb-6 border border-white/5">
@@ -1281,7 +1398,121 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                     <p className="text-slate-500 max-w-xs">The {currentTab} module is coming soon in the next update.</p>
                   </div>
                 );
+              case 'Classes':
+                const filteredClasses = classes.filter(c => !!c.is_archived === showArchived);
+                return (
+                  <div className="px-8 pb-12 space-y-8">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-extrabold tracking-tight">{showArchived ? 'Archived' : 'My'} Classes</h2>
+                        <p className="text-slate-400 mt-1">Manage your {showArchived ? 'past' : 'active'} learning environments.</p>
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="flex bg-slate-900/50 p-1 rounded-xl border border-white/5">
+                          <button 
+                            onClick={() => setShowArchived(false)}
+                            className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", !showArchived ? "bg-primary text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                          >
+                            Active
+                          </button>
+                          <button 
+                            onClick={() => setShowArchived(true)}
+                            className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", showArchived ? "bg-primary text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                          >
+                            Archived
+                          </button>
+                        </div>
+                        {user?.role === 'teacher' && (
+                          <button 
+                            onClick={() => setShowCreateModal(true)}
+                            className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold"
+                          >
+                            Create New Class
+                          </button>
+                        )}
+                        {user?.role === 'student' && (
+                          <button 
+                            onClick={() => setShowJoinModal(true)}
+                            className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold"
+                          >
+                            Join Class
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredClasses.length > 0 ? filteredClasses.map((c) => (
+                        <div key={c.id} className="glass-card p-8 rounded-[2.5rem] border border-white/5 bg-slate-900/50 hover:bg-slate-900 transition-all group relative overflow-hidden">
+                           <div className="flex justify-between items-start mb-6">
+                             <div className="size-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-xl">
+                               <School className="size-8" />
+                             </div>
+                             {user?.role === 'teacher' && (
+                               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <button 
+                                  onClick={() => archiveClass(c.id, !c.is_archived)}
+                                  className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors"
+                                  title={c.is_archived ? "Unarchive" : "Archive"}
+                                 >
+                                   <History className="size-4" />
+                                 </button>
+                                 <button 
+                                  onClick={() => deleteClass(c.id)}
+                                  className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-red-500 transition-colors"
+                                  title="Delete"
+                                 >
+                                   <Plus className="size-4 rotate-45" />
+                                 </button>
+                               </div>
+                             )}
+                           </div>
+                           <h4 className="text-xl font-bold mb-2">{c.name}</h4>
+                           <p className="text-sm text-slate-500 mb-8 line-clamp-1">{c.description || 'No description provided.'}</p>
+                           
+                           <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                             <div className="flex flex-col">
+                               <span className="text-[10px] uppercase font-black text-slate-600 tracking-widest">Class Code</span>
+                               <span className="text-sm font-mono font-bold text-primary">{c.class_code}</span>
+                             </div>
+                             <button 
+                              onClick={() => {
+                                setSelectedClass(c);
+                                setCurrentTab(user?.role === 'teacher' ? 'Dashboard' : 'Students');
+                              }}
+                              className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all border border-white/10"
+                             >
+                               Open Class
+                             </button>
+                           </div>
+                        </div>
+                      )) : (
+                        <div className="col-span-full py-20 text-center bg-slate-900/30 rounded-[2.5rem] border border-white/5">
+                          <BookOpen className="size-12 text-slate-700 mx-auto mb-4" />
+                          <p className="text-slate-500">No {showArchived ? 'archived' : 'active'} classes found.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
               default:
+                if (!selectedClass && ['Dashboard', 'Assignments', 'Students', 'Analytics', 'Content Library', 'Smart Planner', 'Revision Hub'].includes(currentTab)) {
+                  return (
+                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                      <div className="size-20 bg-slate-900 rounded-3xl flex items-center justify-center text-slate-700 mb-6 border border-white/5">
+                        <BookOpen className="size-10" />
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2">No Class Selected</h3>
+                      <p className="text-slate-500 max-w-xs mb-8">Please select a class from the "Classes" tab to view its {currentTab.toLowerCase()}.</p>
+                      <button 
+                        onClick={() => setCurrentTab('Classes')}
+                        className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20"
+                      >
+                        Go to Classes
+                      </button>
+                    </div>
+                  );
+                }
                 return null;
             }
           })()}

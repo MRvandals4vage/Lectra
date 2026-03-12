@@ -41,10 +41,9 @@ export const getClasses = async (req: AuthRequest, res: Response) => {
     const { archived } = req.query;
     let query = supabase.from('classes').select('*');
     
+    // Check if archived filter is requested
     if (archived !== undefined) {
-      query = query.eq('is_archived', archived === 'true');
-    } else {
-      query = query.eq('is_archived', false);
+      query.eq('is_archived', archived === 'true');
     }
 
     if (req.user?.role === 'teacher') {
@@ -160,5 +159,41 @@ export const joinClass = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Join Class Error:', error.message);
     res.status(500).json({ message: 'Error joining class' });
+  }
+};
+
+export const deleteClass = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  if (req.user?.role !== 'teacher') {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+
+  try {
+    const { error } = await supabase
+      .from('classes')
+      .delete()
+      .eq('id', id)
+      .eq('teacher_id', req.user.id);
+
+    if (error) throw error;
+    res.json({ message: 'Class deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete Class Error:', error.message);
+    res.status(500).json({ message: 'Error deleting class' });
+  }
+};
+
+export const getClassmates = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('enrollments')
+      .select('users:student_id(id, name, email)')
+      .eq('class_id', id);
+
+    if (error) throw error;
+    res.json(data.map((e: any) => e.users));
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error fetching classmates' });
   }
 };
