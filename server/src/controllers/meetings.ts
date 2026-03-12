@@ -4,13 +4,20 @@ import { AuthRequest } from '../middleware/auth.js';
 import { AccessToken } from 'livekit-server-sdk';
 
 export const createMeeting = async (req: AuthRequest, res: Response) => {
-  const { classId, roomId } = req.body;
+  const { classId, roomId, scheduledTime, reminders, resources } = req.body;
 
   try {
     const { data, error } = await supabase
       .from('meetings')
       .insert([
-        { class_id: classId, room_id: roomId, created_by: req.user?.id }
+        { 
+          class_id: classId, 
+          room_id: roomId, 
+          created_by: req.user?.id,
+          scheduled_time: scheduledTime,
+          reminders: reminders || [],
+          resources: resources || []
+        }
       ])
       .select()
       .single();
@@ -22,6 +29,7 @@ export const createMeeting = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Error creating meeting' });
   }
 };
+
 
 export const getMeetingsByClass = async (req: AuthRequest, res: Response) => {
   const { classId } = req.params;

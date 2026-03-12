@@ -7,14 +7,23 @@ export const createClass = async (req: AuthRequest, res: Response) => {
     return res.status(403).json({ message: 'Only teachers can create classes' });
   }
 
-  const { title, description } = req.body;
+  const { title, subject, description, semester, folder, tags } = req.body;
   const classCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
   try {
     const { data, error } = await supabase
       .from('classes')
       .insert([
-        { title, description, teacher_id: req.user.id, class_code: classCode }
+        { 
+          title, 
+          subject,
+          description, 
+          semester,
+          folder,
+          tags: tags || [],
+          teacher_id: req.user.id, 
+          class_code: classCode 
+        }
       ])
       .select()
       .single();
@@ -29,8 +38,15 @@ export const createClass = async (req: AuthRequest, res: Response) => {
 
 export const getClasses = async (req: AuthRequest, res: Response) => {
   try {
+    const { archived } = req.query;
     let query = supabase.from('classes').select('*');
     
+    if (archived !== undefined) {
+      query = query.eq('is_archived', archived === 'true');
+    } else {
+      query = query.eq('is_archived', false);
+    }
+
     if (req.user?.role === 'teacher') {
       query = query.eq('teacher_id', req.user.id);
     } else {
@@ -70,6 +86,53 @@ export const getClassById = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Error fetching class' });
   }
 };
+
+export const archiveClass = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { archived } = req.body;
+  if (req.user?.role !== 'teacher') return res.status(403).json({ message: 'Forbidden' });
+
+  try {
+    const { data, error } = await supabase
+      .from('classes')
+      .update({ is_archived: archived })
+      .eq('id', id)
+      .eq('teacher_id', req.user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error archiving class' });
+  }
+};
+
+export const getClassAnalytics = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  try {
+    const { data: metrics, error: metricsError } = await supabase
+      .from('student_metrics')
+      .select('*')
+      .eq('class_id', id);
+
+    if (metricsError) throw metricsError;
+
+    // Aggregate metrics
+    const avgEngagement = metrics.reduce((acc, m) => acc + (m.engagement_score || 0), 0) / (metrics.length || 1);
+    const avgAttendance = metrics.reduce((acc, m) => acc + (m.attendance_rate || 0), 0) / (metrics.length || 1);
+    
+    res.json({
+      studentCount: metrics.length,
+      avgEngagement: Math.round(avgEngagement),
+      avgAttendance: Math.round(avgAttendance * 100) / 100,
+      metrics
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching analytics' });
+  }
+};
+
 
 export const joinClass = async (req: AuthRequest, res: Response) => {
   const { classCode } = req.body;

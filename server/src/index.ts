@@ -8,10 +8,15 @@ import classRoutes from './routes/classes.js';
 import assignmentRoutes from './routes/assignments.js';
 import meetingRoutes from './routes/meetings.js';
 import gradeRoutes from './routes/grading.js';
+import extrasRoutes from './routes/classroomExtras.js';
+import { analyzeMeeting } from './controllers/analysis.js';
+import { authenticateToken } from './middleware/auth.js';
 import { supabase } from './config/supabase.js';
 import './config/db.js';
 
+
 import path from 'path';
+
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -64,6 +69,8 @@ app.use('/classes', classRoutes);
 app.use('/assignments', assignmentRoutes);
 app.use('/meetings', meetingRoutes);
 app.use('/grade', gradeRoutes);
+app.use('/classroom-extras', extrasRoutes);
+app.post('/analyze-meeting', authenticateToken, analyzeMeeting);
 
 // Socket.IO
 io.on('connection', (socket) => {
@@ -78,7 +85,6 @@ io.on('connection', (socket) => {
     io.to(data.roomId).emit('receive-message', data);
     
     try {
-      // Persist to DB
       const { data: meeting } = await supabase
         .from('meetings')
         .select('id')
@@ -97,8 +103,20 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('whiteboard-update', (data) => {
+    socket.to(data.roomId).emit('whiteboard-state', data);
+  });
+
+  socket.on('doubt-posted', (data) => {
+    io.to(data.roomId).emit('new-doubt', data);
+  });
+
   socket.on('raise-hand', (data) => {
     io.to(data.roomId).emit('hand-raised', data);
+  });
+
+  socket.on('poll-created', (data) => {
+    io.to(data.roomId).emit('new-poll', data);
   });
 
   socket.on('disconnect', () => {
@@ -118,6 +136,7 @@ app.use((err: any, req: any, res: any, next: any) => {
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
+
 
 const PORT = process.env.PORT || 5001;
 server.listen(PORT, () => {

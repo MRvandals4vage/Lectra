@@ -1,36 +1,42 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
+import { model } from '../lib/gemini.js';
 
 export const analyzeMeeting = async (req: AuthRequest, res: Response) => {
   const { roomId, transcript } = req.body;
 
   try {
-    // In a real app, you would call OpenAI/Gemini here
-    // const response = await openai.chat.completions.create({...})
-    
-    // Simulating AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const prompt = `
+      Analyze the following lecture transcript and provide:
+      1. A concise summary.
+      2. Key concepts discussed.
+      3. Important questions asked by students or teacher.
+      4. Action items (e.g., assignments, deadlines).
+      5. Revision notes for students.
+      6. 5 Flashcards (front/back).
 
-    res.json({
-      summary: "This meeting focused on the final integration steps for the Nexus Classroom platform. Key discussions included Supabase storage setup, Multer middleware for document handling, and real-time synchronization using Socket.IO.",
-      concepts: [
-        "Supabase Storage Buckets",
-        "Multipart Form Data (Multer)",
-        "Token-based LiveKit Authentication",
-        "Real-time Event Emitters"
-      ],
-      questions: [
-        "How do we handle large file uploads efficiently?",
-        "What is the best way to purge old meeting tokens?",
-        "How should the AI summarize multiple speakers simultaneously?"
-      ],
-      actionItems: [
-        "Review Supabase bucket permissions",
-        "Implement frontend file picker for assignments",
-        "Update MeetingRoom.tsx with the new AI endpoint"
-      ]
-    });
+      Transcript:
+      ${transcript}
+
+      Return JSON: { "summary": "string", "concepts": ["string"], "questions": ["string"], "actionItems": ["string"], "revisionNotes": "string", "flashcards": [{"front": "string", "back": "string"}] }
+    `;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : {
+      summary: "Lecture analysis completed.",
+      concepts: [],
+      questions: [],
+      actionItems: [],
+      revisionNotes: "No notes generated.",
+      flashcards: []
+    };
+
+    res.json(analysis);
   } catch (error) {
+    console.error('AI Analysis Error:', error);
     res.status(500).json({ message: 'AI Analysis failed' });
   }
 };
+
