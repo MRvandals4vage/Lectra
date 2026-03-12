@@ -58,3 +58,28 @@ export const getToken = async (req: AuthRequest, res: Response) => {
 
   res.json({ token: await at.toJwt() });
 };
+
+export const getMeetingMessages = async (req: AuthRequest, res: Response) => {
+  const { roomId } = req.params;
+  try {
+    // First find the meeting UUID
+    const { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', roomId)
+      .single();
+
+    if (meetingError || !meeting) return res.status(404).json({ message: 'Meeting not found' });
+
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('*, users(name)')
+      .eq('meeting_id', meeting.id)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    res.json(messages);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error fetching messages' });
+  }
+};

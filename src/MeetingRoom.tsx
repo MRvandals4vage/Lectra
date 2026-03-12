@@ -27,7 +27,8 @@ import {
   RoomAudioRenderer,
   ControlBar,
   GridLayout,
-  ParticipantLoop
+  ParticipantLoop,
+  useParticipants
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import { io } from 'socket.io-client';
@@ -46,20 +47,37 @@ export default function MeetingRoom({ roomId, onLeave }: { roomId: string, onLea
   const [activeTab, setActiveTab] = useState<'chat' | 'people'>('chat');
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [raisedHands, setRaisedHands] = useState<string[]>([]);
 
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await axios.get(`${API_URL}/meetings/token/${roomId}`);
-        setToken(res.data.token);
+        const [tokenRes, msgRes] = await Promise.all([
+          axios.get(`${API_URL}/meetings/token/${roomId}`),
+          axios.get(`${API_URL}/meetings/messages/${roomId}`)
+        ]);
+        setToken(tokenRes.data.token);
+        setMessages(msgRes.data.map((m: any) => ({
+          name: m.users?.name || 'Unknown',
+          text: m.message,
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isMe: m.user_id === user?.id
+        })));
       } catch (e) {
-        console.error('Failed to get token', e);
+        console.error('Failed to initialize meeting data', e);
       }
     })();
 
     socket.emit('join-room', roomId);
     socket.on('receive-message', (data) => {
       setMessages(prev => [...prev, data]);
+    });
+
+    socket.on('hand-raised', (data) => {
+      setRaisedHands(prev => [...new Set([...prev, data.name])]);
+      setTimeout(() => {
+        setRaisedHands(prev => prev.filter(n => n !== data.name));
+      }, 5000);
     });
 
     return () => {
@@ -70,10 +88,14 @@ export default function MeetingRoom({ roomId, onLeave }: { roomId: string, onLea
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    const msg = { roomId, name: user?.name, text: inputText, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isMe: true };
+    const msg = { roomId, userId: user?.id, name: user?.name, text: inputText, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isMe: true };
     socket.emit('send-message', msg);
     setMessages(prev => [...prev, msg]);
     setInputText('');
+  };
+
+  const raiseHand = () => {
+    socket.emit('raise-hand', { roomId, name: user?.name });
   };
 
   const runAnalysis = async () => {
@@ -98,6 +120,7 @@ export default function MeetingRoom({ roomId, onLeave }: { roomId: string, onLea
       token={token}
       serverUrl={import.meta.env.VITE_LIVEKIT_URL}
       onDisconnected={onLeave}
+      connectOptions={{ autoSubscribe: true }}
       className="flex flex-col h-screen bg-background-dark text-slate-100 overflow-hidden"
     >
       {/* Top Navigation */}
@@ -116,6 +139,13 @@ export default function MeetingRoom({ roomId, onLeave }: { roomId: string, onLea
         </div>
         
         <div className="flex items-center gap-4">
+          <button 
+            onClick={raiseHand}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-primary/20 text-slate-300 hover:text-primary rounded-lg border border-slate-700 transition-all text-xs font-bold"
+          >
+            <Hand className="size-4" />
+            Raise Hand
+          </button>
           <div className="bg-primary/20 rounded-full p-0.5 border border-primary/50">
             <img 
               className="size-8 rounded-full" 
@@ -180,6 +210,23 @@ export default function MeetingRoom({ roomId, onLeave }: { roomId: string, onLea
 
         {/* Center: Video Grid */}
         <section className="flex-1 relative p-6 bg-background-dark">
+          {/* Hand Raise Overlay */}
+          <div className="absolute top-10 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none">
+            <AnimatePresence>
+              {raisedHands.map(name => (
+                <motion.div
+                  key={name}
+                  initial={{ opacity: 0, y: -20, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="bg-primary text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 font-bold text-sm border border-white/20"
+                >
+                  <Hand className="size-4 fill-white" />
+                  {name} raised their hand!
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
           <VideoConference />
         </section>
 
@@ -214,9 +261,7 @@ export default function MeetingRoom({ roomId, onLeave }: { roomId: string, onLea
                 ))}
               </div>
             ) : (
-              <div className="text-slate-500 text-sm text-center mt-10">
-                Participant list managed by LiveKit
-              </div>
+              <PeopleTab />
             )}
           </div>
 
@@ -349,6 +394,41 @@ function ChatMessage({ name, time, text, isMe }: any) {
       )}>
         {text}
       </div>
+    </div>
+  );
+}
+
+function PeopleTab() {
+  const participants = useParticipants();
+  
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Active Participants</span>
+        <span className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full font-bold">{participants.length}</span>
+      </div>
+      {participants.map((p) => (
+        <div key={p.sid} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/30 border border-white/5">
+          <div className="size-8 bg-slate-800 rounded-lg flex items-center justify-center text-[10px] font-bold border border-white/10 uppercase">
+            {p.identity.slice(0, 2)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold truncate">
+              {p.metadata ? JSON.parse(p.metadata).name : p.identity}
+            </p>
+            {p.isSpeaking && (
+              <span className="text-[8px] font-black text-emerald-500 uppercase flex items-center gap-1">
+                <span className="size-1 bg-emerald-500 rounded-full animate-pulse" />
+                Speaking
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {!p.isMicrophoneEnabled ? <MicOff className="size-3 text-red-500" /> : <Mic className="size-3 text-primary" />}
+            {!p.isCameraEnabled ? <VideoOff className="size-3 text-red-500" /> : <Video className="size-3 text-primary" />}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

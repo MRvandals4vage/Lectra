@@ -8,6 +8,7 @@ import classRoutes from './routes/classes.js';
 import assignmentRoutes from './routes/assignments.js';
 import meetingRoutes from './routes/meetings.js';
 import gradeRoutes from './routes/grading.js';
+import { supabase } from './config/supabase.js';
 import './config/db.js';
 
 import path from 'path';
@@ -73,8 +74,27 @@ io.on('connection', (socket) => {
     console.log(`User ${socket.id} joined room ${roomId}`);
   });
 
-  socket.on('send-message', (data) => {
+  socket.on('send-message', async (data) => {
     io.to(data.roomId).emit('receive-message', data);
+    
+    try {
+      // Persist to DB
+      const { data: meeting } = await supabase
+        .from('meetings')
+        .select('id')
+        .eq('room_id', data.roomId)
+        .single();
+
+      if (meeting) {
+        await supabase.from('messages').insert([{
+          meeting_id: meeting.id,
+          user_id: data.userId,
+          message: data.text
+        }]);
+      }
+    } catch (err) {
+      console.error('Error persisting message:', err);
+    }
   });
 
   socket.on('raise-hand', (data) => {

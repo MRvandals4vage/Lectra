@@ -79,3 +79,29 @@ export const submitAssignment = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Error submitting assignment' });
   }
 };
+
+export const getSubmissions = async (req: AuthRequest, res: Response) => {
+  const { classId } = req.params;
+  try {
+    let query = supabase
+      .from('submissions')
+      .select(`
+        *,
+        assignments!inner(id, title, class_id, max_score),
+        users:student_id(name)
+      `)
+      .eq('assignments.class_id', classId);
+
+    if (req.user?.role === 'student') {
+      query = query.eq('student_id', req.user.id);
+    }
+    
+    const { data, error } = await query;
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    console.error('Get Submissions Error:', error.message);
+    res.status(500).json({ message: 'Error fetching submissions' });
+  }
+};

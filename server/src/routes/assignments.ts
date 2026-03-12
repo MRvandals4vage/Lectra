@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { createAssignment, getAssignmentsByClass, submitAssignment } from '../controllers/assignments.js';
+import { createAssignment, getAssignmentsByClass, submitAssignment, getSubmissions } from '../controllers/assignments.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -10,6 +10,7 @@ router.use(authenticateToken);
 
 router.post('/', createAssignment);
 router.get('/:classId', getAssignmentsByClass);
+router.get('/submissions/:classId', getSubmissions);
 router.post('/submit', upload.single('file'), submitAssignment);
 
 export default router;
