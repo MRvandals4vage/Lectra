@@ -31,8 +31,11 @@ export const createClass = async (req: AuthRequest, res: Response) => {
     if (error) throw error;
     res.status(201).json(data);
   } catch (error: any) {
-    console.error('Create Class Error:', error.message);
-    res.status(500).json({ message: 'Error creating class' });
+    console.error('Create Class Error Details:', error);
+    res.status(500).json({ 
+      message: error.message || 'Error creating class',
+      details: error.details || error.hint || null
+    });
   }
 };
 

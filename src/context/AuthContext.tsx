@@ -32,6 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (decoded.exp * 1000 < Date.now()) {
           logout();
         } else {
+          axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
           setToken(savedToken);
           const savedUser = localStorage.getItem('user');
           if (savedUser) setUser(JSON.parse(savedUser));

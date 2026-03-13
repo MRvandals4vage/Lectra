@@ -146,6 +146,18 @@ CREATE TABLE IF NOT EXISTS session_reports (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Materials / Library Table
+CREATE TABLE IF NOT EXISTS materials (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'document', 'video', 'link'
+    url TEXT NOT NULL,
+    size TEXT,
+    uploaded_by UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Collaborative Study Rooms Table
 CREATE TABLE IF NOT EXISTS study_rooms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

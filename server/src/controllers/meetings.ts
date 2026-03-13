@@ -48,23 +48,65 @@ export const getMeetingsByClass = async (req: AuthRequest, res: Response) => {
 };
 
 export const getToken = async (req: AuthRequest, res: Response) => {
-  const { roomId } = req.params;
-  const participantName = req.user?.id || 'identity'; // Use ID as identity
+  const { roomId } = req.params; // This is the class_code
+  const participantName = req.user?.name || 'User';
 
-  const apiKey = process.env.LIVEKIT_API_KEY;
-  const apiSecret = process.env.LIVEKIT_API_SECRET;
+  try {
+    // Check if meeting exists
+    let { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', roomId)
+      .single();
 
-  if (!apiKey || !apiSecret) {
-    return res.status(500).json({ message: 'LiveKit API keys not configured' });
+    if (meetingError || !meeting) {
+      // Create meeting record if it doesn't exist
+      // Since roomId is class_code, find the class first
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('class_code', roomId)
+        .single();
+
+      if (classError || !classData) {
+        return res.status(404).json({ message: 'Class not found for this room' });
+      }
+
+      const { data: newMeeting, error: createError } = await supabase
+        .from('meetings')
+        .insert([
+          { 
+            class_id: classData.id, 
+            room_id: roomId, 
+            created_by: req.user?.id 
+          }
+        ])
+        .select()
+        .single();
+
+      if (createError) throw createError;
+      meeting = newMeeting;
+    }
+
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+    if (!apiKey || !apiSecret) {
+      return res.status(500).json({ message: 'LiveKit API keys not configured' });
+    }
+
+    const at = new AccessToken(apiKey, apiSecret, {
+      identity: req.user?.id || 'identity',
+      name: participantName,
+    });
+
+    at.addGrant({ roomJoin: true, room: roomId as string, canPublish: true, canSubscribe: true });
+
+    res.json({ token: await at.toJwt() });
+  } catch (error: any) {
+    console.error('getToken Error:', error.message);
+    res.status(500).json({ message: 'Error generating token' });
   }
-
-  const at = new AccessToken(apiKey, apiSecret, {
-    identity: participantName,
-  });
-
-  at.addGrant({ roomJoin: true, room: roomId as string, canPublish: true, canSubscribe: true });
-
-  res.json({ token: await at.toJwt() });
 };
 
 export const getMeetingMessages = async (req: AuthRequest, res: Response) => {

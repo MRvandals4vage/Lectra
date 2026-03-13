@@ -7,15 +7,25 @@ import { generateContent, generateJSON } from '../lib/gemini.js';
 export const getDoubts = async (req: AuthRequest, res: Response) => {
   const { meetingId } = req.params;
   try {
+    // Resolve room_id to meeting UUID if necessary
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', meetingId)
+      .single();
+
+    if (!meeting) return res.json([]);
+
     const { data, error } = await supabase
       .from('doubts')
       .select('*, users:student_id(name)')
-      .eq('meeting_id', meetingId)
+      .eq('meeting_id', meeting.id)
       .order('upvotes', { ascending: false });
 
     if (error) throw error;
     res.json(data);
   } catch (error) {
+    console.error('getDoubts Error:', error);
     res.status(500).json({ message: 'Error fetching doubts' });
   }
 };
@@ -23,15 +33,24 @@ export const getDoubts = async (req: AuthRequest, res: Response) => {
 export const createDoubt = async (req: AuthRequest, res: Response) => {
   const { meetingId, question, category } = req.body;
   try {
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', meetingId)
+      .single();
+
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
     const { data, error } = await supabase
       .from('doubts')
-      .insert([{ meeting_id: meetingId, student_id: req.user?.id, question, category }])
+      .insert([{ meeting_id: meeting.id, student_id: req.user?.id, question, category }])
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
   } catch (error) {
+    console.error('createDoubt Error:', error);
     res.status(500).json({ message: 'Error creating doubt' });
   }
 };
@@ -84,13 +103,22 @@ export const markDoubtAnswered = async (req: AuthRequest, res: Response) => {
 export const saveWhiteboard = async (req: AuthRequest, res: Response) => {
   const { meetingId, data } = req.body;
   try {
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', meetingId)
+      .single();
+
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
     const { error } = await supabase
       .from('whiteboard_sessions')
-      .upsert([{ meeting_id: meetingId, data, last_saved: new Date() }], { onConflict: 'meeting_id' });
+      .upsert([{ meeting_id: meeting.id, data, last_saved: new Date() }], { onConflict: 'meeting_id' });
 
     if (error) throw error;
     res.json({ message: 'Whiteboard saved' });
   } catch (error) {
+    console.error('saveWhiteboard Error:', error);
     res.status(500).json({ message: 'Error saving whiteboard' });
   }
 };
@@ -98,15 +126,24 @@ export const saveWhiteboard = async (req: AuthRequest, res: Response) => {
 export const getWhiteboard = async (req: AuthRequest, res: Response) => {
   const { meetingId } = req.params;
   try {
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', meetingId)
+      .single();
+
+    if (!meeting) return res.json({ data: [] });
+
     const { data, error } = await supabase
       .from('whiteboard_sessions')
       .select('*')
-      .eq('meeting_id', meetingId)
+      .eq('meeting_id', meeting.id)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
     res.json(data || { data: [] });
   } catch (error) {
+    console.error('getWhiteboard Error:', error);
     res.status(500).json({ message: 'Error fetching whiteboard' });
   }
 };
@@ -115,14 +152,23 @@ export const getWhiteboard = async (req: AuthRequest, res: Response) => {
 export const getPolls = async (req: AuthRequest, res: Response) => {
   const { meetingId } = req.params;
   try {
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', meetingId)
+      .single();
+
+    if (!meeting) return res.json([]);
+
     const { data: polls, error } = await supabase
       .from('polls')
       .select('*, poll_responses(response_index)')
-      .eq('meeting_id', meetingId);
+      .eq('meeting_id', meeting.id);
 
     if (error) throw error;
     res.json(polls);
   } catch (error) {
+    console.error('getPolls Error:', error);
     res.status(500).json({ message: 'Error fetching polls' });
   }
 };
@@ -132,15 +178,24 @@ export const createPoll = async (req: AuthRequest, res: Response) => {
   if (req.user?.role !== 'teacher') return res.status(403).json({ message: 'Forbidden' });
 
   try {
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('room_id', meetingId)
+      .single();
+
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
     const { data, error } = await supabase
       .from('polls')
-      .insert([{ meeting_id: meetingId, question, options: JSON.parse(options) }])
+      .insert([{ meeting_id: meeting.id, question, options: JSON.parse(options) }])
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
   } catch (error) {
+    console.error('createPoll Error:', error);
     res.status(500).json({ message: 'Error creating poll' });
   }
 };
@@ -198,12 +253,10 @@ export const aiAssistant = async (req: AuthRequest, res: Response) => {
   const { classId, question } = req.body;
 
   try {
-    // Fetch context: last meetings and assignments
-    const { data: meetings } = await supabase
-      .from('meetings')
-      .select('analysis')
-      .eq('class_id', classId)
-      .not('analysis', 'is', null)
+    const { data: reports } = await supabase
+      .from('session_reports')
+      .select('summary, meeting_id, meetings!inner(class_id)')
+      .eq('meetings.class_id', classId)
       .order('created_at', { ascending: false })
       .limit(3);
 
@@ -215,7 +268,7 @@ export const aiAssistant = async (req: AuthRequest, res: Response) => {
 
     const context = `
       Class Context:
-      Recent Lectures: ${meetings?.map(m => JSON.stringify(m.analysis)).join('\n')}
+      Recent Lectures: ${reports?.map(r => r.summary).join('\n')}
       Assignments: ${assignments?.map(a => `${a.title}: ${a.description}`).join('\n')}
     `;
 
@@ -272,13 +325,13 @@ export const generateWeeklySummary = async (req: AuthRequest, res: Response) => 
     const lastWeek = new Date();
     lastWeek.setDate(lastWeek.getDate() - 7);
 
-    const [meetings, assignments] = await Promise.all([
-      supabase.from('meetings').select('id, session_reports(summary)').eq('class_id', classId).gte('start_time', lastWeek.toISOString()),
+    const [reportsRes, assignmentsRes] = await Promise.all([
+      supabase.from('session_reports').select('summary, created_at, meetings!inner(class_id)').eq('meetings.class_id', classId).gte('created_at', lastWeek.toISOString()),
       supabase.from('assignments').select('title').eq('class_id', classId).gte('created_at', lastWeek.toISOString())
     ]);
 
-    const summaries = meetings.data?.map(m => m.session_reports?.[0]?.summary).filter(Boolean).join('\n');
-    const assignmentTitles = assignments.data?.map(a => a.title).join(', ');
+    const summaries = reportsRes.data?.map(r => r.summary).filter(Boolean).join('\n');
+    const assignmentTitles = assignmentsRes.data?.map(a => a.title).join(', ');
 
     const prompt = `
       Create a weekly summary for a classroom.

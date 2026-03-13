@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, X, Folder, Tag, BookOpen, Calendar } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 interface CreateClassModalProps {
   show: boolean;
@@ -35,120 +36,136 @@ export default function CreateClassModal({ show, onClose, onCreate }: CreateClas
   return (
     <AnimatePresence>
       {show && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-lectra-background/80 backdrop-blur-md">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="w-full max-w-lg bg-lectra-card border border-lectra-border rounded-[2.5rem] p-10 shadow-3xl relative overflow-hidden"
           >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold">Create New Classroom</h3>
-              <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-400">
-                <X className="size-6" />
+            {/* Background Decorative Element */}
+            <div className="absolute top-0 right-0 size-32 bg-lectra-primary/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none" />
+            
+            <div className="flex justify-between items-center mb-8 relative z-10">
+              <div>
+                <h3 className="text-2xl font-black text-lectra-text font-outfit uppercase tracking-tight">Create Classroom</h3>
+                <p className="text-lectra-muted text-xs font-bold uppercase tracking-widest mt-1">Design your digital learning space</p>
+              </div>
+              <button 
+                onClick={onClose} 
+                className="size-10 flex items-center justify-center hover:bg-lectra-background rounded-2xl text-lectra-muted hover:text-lectra-text transition-all border border-transparent hover:border-lectra-border"
+              >
+                <X className="size-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="text-sm font-medium text-slate-400">Class Title</label>
+            <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-lectra-muted uppercase tracking-[0.2em] px-1">Class Title</label>
                   <input 
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 text-white mt-1"
+                    className="w-full bg-lectra-background border border-lectra-border rounded-2xl py-4 px-6 text-lectra-text mt-2 focus:border-lectra-primary outline-none transition-all placeholder:text-slate-800 font-medium"
                     placeholder="e.g. Advanced UX Research"
                     required
                   />
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-400">Subject</label>
-                  <div className="relative">
-                    <BookOpen className="absolute left-3 top-4 size-4 text-slate-500" />
-                    <input 
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white mt-1"
-                      placeholder="e.g. Design"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-400">Semester</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-4 size-4 text-slate-500" />
-                    <input 
-                      value={formData.semester}
-                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white mt-1"
-                      placeholder="e.g. Spring 2024"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              <div>
-                <label className="text-sm font-medium text-slate-400">Description</label>
-                <textarea 
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 text-white mt-1 h-20"
-                  placeholder="What will students learn?"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-400">Folder</label>
-                  <div className="relative">
-                    <Folder className="absolute left-3 top-4 size-4 text-slate-500" />
-                    <input 
-                      value={formData.folder}
-                      onChange={(e) => setFormData({ ...formData, folder: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white mt-1"
-                      placeholder="e.g. Graduate"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-400">Tags</label>
-                  <div className="flex gap-2 mt-1">
-                    <div className="relative flex-1">
-                      <Tag className="absolute left-3 top-3 size-4 text-slate-500" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-lectra-muted uppercase tracking-[0.2em] px-1">Subject Area</label>
+                    <div className="relative group mt-2">
+                      <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-lectra-muted group-focus-within:text-lectra-primary transition-colors" />
                       <input 
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2 pl-10 pr-4 text-sm text-white"
-                        placeholder="Add tag..."
+                        value={formData.subject}
+                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                        className="w-full bg-lectra-background border border-lectra-border rounded-xl py-3.5 pl-11 pr-4 text-lectra-text focus:border-lectra-primary outline-none transition-all placeholder:text-slate-800 text-sm font-medium"
+                        placeholder="e.g. Design"
                       />
                     </div>
-                    <button type="button" onClick={addTag} className="p-2 bg-slate-800 border border-slate-700 rounded-xl hover:bg-slate-700">
-                      <Plus className="size-5" />
-                    </button>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {formData.tags.map(tag => (
-                      <span key={tag} className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-md flex items-center gap-1 font-bold">
-                        {tag}
-                        <X className="size-3 cursor-pointer" onClick={() => setFormData({ ...formData, tags: formData.tags.filter(t => t !== tag) })} />
-                      </span>
-                    ))}
+                  <div>
+                    <label className="text-[10px] font-black text-lectra-muted uppercase tracking-[0.2em] px-1">Semester</label>
+                    <div className="relative group mt-2">
+                      <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-lectra-muted group-focus-within:text-lectra-primary transition-colors" />
+                      <input 
+                        value={formData.semester}
+                        onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                        className="w-full bg-lectra-background border border-lectra-border rounded-xl py-3.5 pl-11 pr-4 text-lectra-text focus:border-lectra-primary outline-none transition-all placeholder:text-slate-800 text-sm font-medium"
+                        placeholder="e.g. Spring 2024"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-lectra-muted uppercase tracking-[0.2em] px-1">Description</label>
+                  <textarea 
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full bg-lectra-background border border-lectra-border rounded-2xl py-4 px-6 text-lectra-text mt-2 h-24 focus:border-lectra-primary outline-none transition-all placeholder:text-slate-800 resize-none text-sm font-medium leading-relaxed"
+                    placeholder="Briefly describe the learning objectives..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-lectra-muted uppercase tracking-[0.2em] px-1">Folder Path</label>
+                    <div className="relative group mt-2">
+                      <Folder className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-lectra-muted group-focus-within:text-lectra-primary transition-colors" />
+                      <input 
+                        value={formData.folder}
+                        onChange={(e) => setFormData({ ...formData, folder: e.target.value })}
+                        className="w-full bg-lectra-background border border-lectra-border rounded-xl py-3.5 pl-11 pr-4 text-lectra-text focus:border-lectra-primary outline-none transition-all placeholder:text-slate-800 text-sm font-medium"
+                        placeholder="e.g. Graduate"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-lectra-muted uppercase tracking-[0.2em] px-1">Category Tags</label>
+                    <div className="flex gap-2 mt-2">
+                      <div className="relative flex-1 group">
+                        <Tag className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-lectra-muted group-focus-within:text-lectra-primary transition-colors" />
+                        <input 
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                          className="w-full bg-lectra-background border border-lectra-border rounded-xl py-3.5 pl-11 pr-4 text-[13px] text-lectra-text focus:border-lectra-primary outline-none transition-all placeholder:text-slate-800 font-medium"
+                          placeholder="Add..."
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={addTag} 
+                        className="size-[46px] bg-lectra-background border border-lectra-border rounded-xl hover:border-lectra-primary text-lectra-muted hover:text-lectra-primary transition-all flex items-center justify-center"
+                      >
+                        <Plus className="size-5" />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {formData.tags.map(tag => (
+                        <span key={tag} className="text-[9px] bg-lectra-primary/10 text-lectra-primary px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-black uppercase tracking-widest border border-lectra-primary/10 transition-all hover:bg-lectra-primary hover:text-white">
+                          {tag}
+                          <X className="size-3 cursor-pointer opacity-50 hover:opacity-100" onClick={() => setFormData({ ...formData, tags: formData.tags.filter(t => t !== tag) })} />
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-6">
+              <div className="flex gap-4 pt-4">
                 <button 
                   type="button"
                   onClick={onClose}
-                  className="flex-1 py-3 border border-slate-700 rounded-xl font-bold hover:bg-slate-800 transition-all text-white"
+                  className="flex-1 py-4 border border-lectra-border rounded-2xl font-black uppercase tracking-widest text-[11px] text-lectra-muted hover:text-lectra-text hover:bg-white/5 transition-all"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 py-3 bg-primary rounded-xl font-bold text-white hover:brightness-110 transition-all shadow-lg shadow-primary/20"
+                  className="flex-1 py-4 bg-lectra-primary rounded-2xl font-black uppercase tracking-widest text-[11px] text-white hover:bg-lectra-primaryHover transition-all shadow-xl shadow-lectra-primary/20"
                 >
                   Create Classroom
                 </button>
