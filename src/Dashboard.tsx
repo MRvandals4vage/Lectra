@@ -61,11 +61,7 @@ const chartColors = {
   pending: "#F59E0B"
 };
 
-// Note: data state is used for the chart in Student view, but currently has mock values. 
-// We should ideally fetch this from analytics, but for now we'll keep it as an empty or neutral set if requested, 
-// or just leave it for visual flavor if it's considered "chart placeholder" rather than "dummy data".
-// To be safe and follow instructions strictly, I'll clear it or use real-ish logic if available.
-const data: any[] = [];
+
 
 import CreateClassModal from './components/CreateClassModal';
 import StudyRooms from './components/StudyRooms';
@@ -117,6 +113,11 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
   const [selectedStudentDetail, setSelectedStudentDetail] = React.useState<any>(null);
   const [showStudentModal, setShowStudentModal] = React.useState(false);
   const [loadingStudentDetail, setLoadingStudentDetail] = React.useState(false);
+  const [classMeetings, setClassMeetings] = React.useState<any[]>([]);
+  const [aiSummary, setAiSummary] = React.useState('');
+  const [aiQuiz, setAiQuiz] = React.useState<any>(null);
+  const [aiInsightReport, setAiInsightReport] = React.useState('');
+  const [aiLoading, setAiLoading] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (token) {
@@ -133,6 +134,7 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
       fetchClassmates(selectedClass.id);
       if (user?.role === 'teacher') {
         fetchEnrolledStudents(selectedClass.id);
+        fetchClassMeetings(selectedClass.id);
       }
     }
   }, [selectedClass]);
@@ -147,11 +149,72 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
   };
 
   const fetchEnrolledStudents = async (classId: string) => {
+    if (!classId) return;
     try {
       const res = await axios.get(`${API_URL}/classes/${classId}/students`);
       setEnrolledStudents(res.data);
     } catch (err) {
       console.error('Error fetching enrolled students:', err);
+    }
+  };
+
+  const fetchClassMeetings = async (classId: string) => {
+    if (!classId) return;
+    try {
+      const res = await axios.get(`${API_URL}/meetings/class/${classId}`);
+      setClassMeetings(res.data || []);
+    } catch (err) {
+      console.error('Error fetching meetings:', err);
+    }
+  };
+
+  const handleAiSummary = async () => {
+    if (!selectedClass?.id) return;
+    setAiLoading('summary');
+    try {
+      const res = await axios.post(`${API_URL}/classroom-extras/ai/weekly-summary`, { classId: selectedClass.id });
+      setAiSummary(res.data.summary || 'No summary could be generated.');
+    } catch (err) {
+      console.error('AI Summary Error:', err);
+      setAiSummary('Failed to generate summary. Please try again.');
+    } finally {
+      setAiLoading(null);
+    }
+  };
+
+  const handleAiQuiz = async () => {
+    if (!selectedClass?.id) return;
+    setAiLoading('quiz');
+    try {
+      const { data: assignmentsList } = await axios.get(`${API_URL}/assignments/${selectedClass.id}`);
+      const topics = assignmentsList.map((a: any) => a.title).join(', ');
+      const res = await axios.post(`${API_URL}/classroom-extras/ai/assistant`, {
+        classId: selectedClass.id,
+        question: `Generate a quiz with 5 multiple choice questions based on these class topics: ${topics}. Format as markdown with questions numbered 1-5, each with options A-D and the correct answer marked.`
+      });
+      setAiQuiz(res.data.answer || 'Failed to generate quiz.');
+    } catch (err) {
+      console.error('AI Quiz Error:', err);
+      setAiQuiz('Failed to generate quiz. Please try again.');
+    } finally {
+      setAiLoading(null);
+    }
+  };
+
+  const handleAiInsightExport = async () => {
+    if (!selectedClass?.id) return;
+    setAiLoading('export');
+    try {
+      const res = await axios.post(`${API_URL}/classroom-extras/ai/assistant`, {
+        classId: selectedClass.id,
+        question: `Generate a comprehensive pedagogical insights report for this class. Include: 1) Student engagement analysis, 2) Topic coverage assessment, 3) Areas where students may need more support, 4) Recommendations for upcoming lectures, 5) Overall class health score. Format as a professional markdown report.`
+      });
+      setAiInsightReport(res.data.answer || 'Failed to generate report.');
+    } catch (err) {
+      console.error('AI Export Error:', err);
+      setAiInsightReport('Failed to generate insights report. Please try again.');
+    } finally {
+      setAiLoading(null);
     }
   };
 
@@ -1105,43 +1168,118 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                   </div>
                 );
               case 'Analytics':
+                const analyticsChartData = (() => {
+                  if (!classAnalytics) return [];
+                  const totalStudents = enrolledStudents.length;
+                  const totalAssignments = assignments.length;
+                  const totalSubmissions = submissions.length;
+                  const gradedSubs = submissions.filter((s: any) => s.grade !== null && s.grade !== undefined);
+                  const avgGrade = gradedSubs.length > 0
+                    ? Math.round(gradedSubs.reduce((acc: number, s: any) => acc + (s.grade || 0), 0) / gradedSubs.length)
+                    : 0;
+                  return [
+                    { name: 'Students', value: totalStudents },
+                    { name: 'Assignments', value: totalAssignments },
+                    { name: 'Submissions', value: totalSubmissions },
+                    { name: 'Graded', value: gradedSubs.length },
+                    { name: 'Avg Grade', value: avgGrade },
+                  ];
+                })();
+
+                const completionStats = (() => {
+                  if (enrolledStudents.length === 0) return { avg: 0, high: 0, low: 0 };
+                  const rates = enrolledStudents.map((s: any) => s.completionRate || 0);
+                  return {
+                    avg: Math.round(rates.reduce((a: number, b: number) => a + b, 0) / rates.length),
+                    high: Math.max(...rates),
+                    low: Math.min(...rates),
+                  };
+                })();
+
                 return (
                   <div className="px-8 pb-12 space-y-8">
                     <div className="flex items-center justify-between">
                       <div>
                         <h2 className="text-3xl font-extrabold tracking-tight text-lectra-text">Class Analytics</h2>
-                        <p className="text-lectra-muted mt-1">Deep insights into student engagement and performance.</p>
+                        <p className="text-lectra-muted mt-1">Insights into student engagement and performance for {selectedClass?.title}.</p>
                       </div>
                     </div>
+
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-lectra-card rounded-2xl p-5 border border-lectra-border">
+                        <p className="text-[9px] font-black text-lectra-muted uppercase tracking-widest">Enrolled Students</p>
+                        <p className="text-3xl font-black text-lectra-text mt-1">{enrolledStudents.length}</p>
+                      </div>
+                      <div className="bg-lectra-card rounded-2xl p-5 border border-lectra-border">
+                        <p className="text-[9px] font-black text-lectra-muted uppercase tracking-widest">Assignments</p>
+                        <p className="text-3xl font-black text-lectra-text mt-1">{assignments.length}</p>
+                      </div>
+                      <div className="bg-lectra-card rounded-2xl p-5 border border-lectra-border">
+                        <p className="text-[9px] font-black text-lectra-muted uppercase tracking-widest">Submissions</p>
+                        <p className="text-3xl font-black text-lectra-text mt-1">{submissions.length}</p>
+                      </div>
+                      <div className="bg-lectra-card rounded-2xl p-5 border border-lectra-border">
+                        <p className="text-[9px] font-black text-lectra-muted uppercase tracking-widest">Avg Completion</p>
+                        <p className="text-3xl font-black text-lectra-text mt-1">{completionStats.avg}%</p>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       <div className="bg-lectra-card p-8 rounded-3xl border border-lectra-border h-96 flex flex-col">
                         <h4 className="text-lg font-bold text-lectra-text mb-6 flex items-center gap-2">
                           <Activity className="size-5 text-lectra-primary" />
-                          Attendance Trends
+                          Class Overview
                         </h4>
                         <div className="flex-1 min-h-0">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-                              <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} axisLine={false} tickLine={false} />
-                              <YAxis stroke="#94A3B8" fontSize={10} axisLine={false} tickLine={false} />
-                              <Tooltip
-                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px' }}
-                                cursor={{ fill: 'rgba(79, 70, 229, 0.1)' }}
-                              />
-                              <Bar dataKey="value" fill="#4F46E5" radius={[6, 6, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
+                          {analyticsChartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={analyticsChartData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                                <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} axisLine={false} tickLine={false} />
+                                <YAxis stroke="#94A3B8" fontSize={10} axisLine={false} tickLine={false} />
+                                <Tooltip
+                                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px' }}
+                                  cursor={{ fill: 'rgba(79, 70, 229, 0.1)' }}
+                                />
+                                <Bar dataKey="value" fill="#4F46E5" radius={[6, 6, 0, 0]}>
+                                  {analyticsChartData.map((_: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#4F46E5' : '#7C3AED'} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <p className="text-lectra-muted text-sm">No data available yet. Enroll students and create assignments to see analytics.</p>
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="bg-lectra-card p-8 rounded-3xl border border-lectra-border h-96">
-                        <h4 className="text-lg font-bold text-lectra-text mb-6">Engagement Distribution</h4>
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center group">
-                            <Activity className="size-16 text-lectra-muted mx-auto mb-4 group-hover:text-lectra-primary transition-colors animate-pulse-slow" />
-                            <p className="text-lectra-muted text-xs max-w-xs mx-auto font-medium">Neural systems are tracking student attention patterns. Data will refresh in <span className="text-lectra-primary font-bold">4m 12s</span></p>
+                      <div className="bg-lectra-card p-8 rounded-3xl border border-lectra-border h-96 flex flex-col">
+                        <h4 className="text-lg font-bold text-lectra-text mb-6">Student Completion Rates</h4>
+                        {enrolledStudents.length > 0 ? (
+                          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
+                            {enrolledStudents.sort((a: any, b: any) => (b.completionRate || 0) - (a.completionRate || 0)).map((student: any) => (
+                              <div key={student.id} className="flex items-center gap-3">
+                                <img src={`https://ui-avatars.com/api/?name=${student.name}&background=4F46E5&color=fff&size=32&bold=true`} alt="" className="size-7 rounded-lg" />
+                                <div className="flex-1">
+                                  <div className="flex justify-between text-[10px] font-bold mb-1">
+                                    <span className="text-lectra-text truncate max-w-[120px]">{student.name}</span>
+                                    <span className={student.completionRate < 50 ? 'text-lectra-danger' : 'text-lectra-success'}>{student.completionRate}%</span>
+                                  </div>
+                                  <div className="h-1 bg-lectra-background rounded-full overflow-hidden">
+                                    <div className={cn("h-full rounded-full transition-all", student.completionRate < 50 ? 'bg-lectra-danger' : 'bg-lectra-success')} style={{ width: `${student.completionRate}%` }} />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
+                        ) : (
+                          <div className="flex items-center justify-center h-full">
+                            <p className="text-lectra-muted text-sm">No students enrolled yet.</p>
+                          </div>
+                        )}
                       </div>
                       <div className="lg:col-span-2">
                         <WeeklySummaryCard classId={selectedClass?.id} />
@@ -1165,14 +1303,14 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                           <h2 className="text-3xl font-extrabold tracking-tight mb-6">Classmates</h2>
                           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                             {classmates.map((c) => (
-                              <div key={c.id} className="flex flex-col items-center p-4 bg-slate-900 shadow-sm rounded-3xl border border-white/5 hover:border-primary/30 transition-all cursor-default">
+                              <div key={c.id} className="flex flex-col items-center p-4 bg-lectra-card shadow-sm rounded-3xl border border-lectra-border hover:border-lectra-primary/30 transition-all cursor-default">
                                 <img
-                                  src={`https://ui-avatars.com/api/?name=${c.name}&background=random`}
+                                  src={`https://ui-avatars.com/api/?name=${c.name}&background=4F46E5&color=fff&bold=true`}
                                   className="size-16 rounded-2xl mb-3 shadow-inner"
                                   alt={c.name}
                                 />
-                                <p className="text-xs font-bold text-center truncate w-full">{c.name}</p>
-                                <p className="text-[10px] text-slate-500 truncate w-full text-center">{c.email}</p>
+                                <p className="text-xs font-bold text-center truncate w-full text-lectra-text">{c.name}</p>
+                                <p className="text-[10px] text-lectra-muted truncate w-full text-center">{c.email}</p>
                               </div>
                             ))}
                           </div>
@@ -1253,74 +1391,86 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                   <div className="px-8 pb-12 space-y-6">
                     <div className="flex justify-between items-center">
                       <div>
-                        <h2 className="text-3xl font-extrabold tracking-tight">Live Lectures</h2>
-                        <p className="text-slate-400 mt-1">Direct control center for virtual classroom sessions.</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight text-lectra-text">Live Lectures</h2>
+                        <p className="text-lectra-muted mt-1">Manage virtual classroom sessions for {selectedClass?.title}.</p>
                       </div>
-                      <div className="flex gap-3">
-                        <button className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700">
-                          <Calendar className="size-5" />
-                          Schedule
-                        </button>
-                        <button
-                          onClick={() => onStartClass(selectedClass?.class_code || '')}
-                          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold hover:brightness-110 shadow-lg shadow-primary/20"
-                        >
-                          <Radio className="size-5" />
-                          Start Session
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => onStartClass(selectedClass?.class_code || '')}
+                        className="flex items-center gap-2 px-6 py-3 bg-lectra-primary text-white rounded-xl font-bold hover:bg-lectra-primaryHover shadow-lg shadow-lectra-primary/20 transition-all"
+                      >
+                        <Radio className="size-5" />
+                        Start Live Session
+                      </button>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                       <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-slate-900 border border-white/5 rounded-3xl p-8">
-                          <h4 className="text-lg font-bold mb-6 flex items-center justify-between">
-                            Active Participants
-                            <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-widest font-black">42 Online</span>
+                        <div className="bg-lectra-card border border-lectra-border rounded-3xl p-8">
+                          <h4 className="text-lg font-bold mb-6 flex items-center justify-between text-lectra-text">
+                            Enrolled Students
+                            <span className="text-[10px] bg-lectra-primary/10 text-lectra-primary px-3 py-1 rounded-full uppercase tracking-widest font-black">{enrolledStudents.length} Members</span>
                           </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {[1, 2, 3, 4, 5, 6].map(i => (
-                              <div key={i} className="flex items-center justify-between p-4 bg-slate-800/30 rounded-2xl border border-white/5 hover:border-primary/20 transition-all">
-                                <div className="flex items-center gap-3">
-                                  <div className="size-9 bg-slate-700 rounded-xl" />
-                                  <div>
-                                    <p className="text-sm font-bold">Student {i}</p>
-                                    <p className="text-[10px] text-emerald-500 font-bold">LIFELINE ESTABLISHED</p>
+                          {enrolledStudents.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {enrolledStudents.map((student: any) => (
+                                <div key={student.id} className="flex items-center justify-between p-4 bg-lectra-background/50 rounded-2xl border border-lectra-border/30 hover:border-lectra-primary/20 transition-all">
+                                  <div className="flex items-center gap-3">
+                                    <img src={`https://ui-avatars.com/api/?name=${student.name}&background=4F46E5&color=fff&size=36&bold=true`} alt="" className="size-9 rounded-xl" />
+                                    <div>
+                                      <p className="text-sm font-bold text-lectra-text">{student.name}</p>
+                                      <p className="text-[10px] text-lectra-muted">{student.email}</p>
+                                    </div>
                                   </div>
                                 </div>
-                                <button className="size-8 bg-slate-700/50 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
-                                  <Radio className="size-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="py-12 text-center">
+                              <Users className="size-10 text-lectra-muted/30 mx-auto mb-3" />
+                              <p className="text-lectra-muted text-sm">No students enrolled yet</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-6">
-                        <div className="bg-slate-900 border border-white/5 rounded-3xl p-8">
-                          <h4 className="text-lg font-bold mb-6">Interaction Tools</h4>
+                        <div className="bg-lectra-card border border-lectra-border rounded-3xl p-8">
+                          <h4 className="text-lg font-bold mb-6 text-lectra-text">Session Tools</h4>
                           <div className="grid grid-cols-1 gap-3">
-                            <button className="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-2xl hover:bg-primary hover:text-white group transition-all">
+                            <button
+                              onClick={() => onStartClass(selectedClass?.class_code || '')}
+                              className="flex items-center justify-between p-4 bg-lectra-primary/5 border border-lectra-primary/20 rounded-2xl hover:bg-lectra-primary hover:text-white group transition-all"
+                            >
                               <div className="flex items-center gap-3">
-                                <Award className="size-5 text-primary group-hover:text-white transition-colors" />
-                                <span className="text-sm font-bold">Collaborative Whiteboard</span>
+                                <Video className="size-5 text-lectra-primary group-hover:text-white transition-colors" />
+                                <span className="text-sm font-bold">Start Meeting</span>
                               </div>
-                              <Plus className="size-4" />
+                              <ChevronRight className="size-4" />
                             </button>
-                            <button className="flex items-center justify-between p-4 bg-slate-800/50 border border-white/5 rounded-2xl hover:bg-slate-800 transition-all">
-                              <div className="flex items-center gap-3">
-                                <Activity className="size-5 text-orange-500" />
-                                <span className="text-sm font-bold">Launch Surprise Poll</span>
-                              </div>
-                              <Plus className="size-4" />
-                            </button>
-                            <button className="flex items-center justify-between p-4 bg-slate-800/50 border border-white/5 rounded-2xl hover:bg-slate-800 transition-all">
-                              <div className="flex items-center gap-3">
-                                <Users className="size-5 text-emerald-500" />
-                                <span className="text-sm font-bold">Create Breakout Rooms</span>
-                              </div>
-                              <Plus className="size-4" />
-                            </button>
+                            <div className="p-4 bg-lectra-background/50 border border-lectra-border/30 rounded-2xl">
+                              <p className="text-[9px] font-black text-lectra-muted uppercase tracking-widest mb-1">Class Code</p>
+                              <p className="text-lg font-mono font-black text-lectra-primary">{selectedClass?.class_code}</p>
+                              <p className="text-[10px] text-lectra-muted mt-1">Share this with students to join</p>
+                            </div>
                           </div>
+                        </div>
+                        <div className="bg-lectra-card border border-lectra-border rounded-3xl p-8">
+                          <h4 className="text-lg font-bold mb-4 text-lectra-text">Past Sessions</h4>
+                          {classMeetings.length > 0 ? (
+                            <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
+                              {classMeetings.map((meeting: any) => (
+                                <div key={meeting.id} className="flex items-center gap-3 p-3 bg-lectra-background/50 rounded-xl border border-lectra-border/30">
+                                  <div className="size-8 bg-lectra-primary/10 rounded-lg flex items-center justify-center text-lectra-primary">
+                                    <Video className="size-4" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-bold text-lectra-text">{meeting.room_id}</p>
+                                    <p className="text-[10px] text-lectra-muted">{new Date(meeting.created_at).toLocaleDateString()} • {new Date(meeting.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-lectra-muted text-xs text-center py-4 italic">No sessions recorded yet</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1331,39 +1481,114 @@ export default function Dashboard({ onStartClass }: { onStartClass: (roomId: str
                   <div className="px-8 pb-12 space-y-8">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-3xl font-extrabold tracking-tight">AI Insights</h2>
-                        <p className="text-slate-400 mt-1">Lectra's neural patterns analyzing your classroom data.</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight text-lectra-text">AI Insights</h2>
+                        <p className="text-lectra-muted mt-1">Gemini-powered analysis for {selectedClass?.title || 'your class'}.</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-slate-900 p-8 rounded-3xl border border-primary/10 relative overflow-hidden group col-span-1">
-                        <Brain className="absolute -right-8 -bottom-8 size-40 opacity-5 text-primary group-hover:scale-110 transition-transform" />
-                        <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
-                          <Sparkles className="size-4 text-primary" />
-                          Lecture Summarizer
+                      {/* Lecture Summarizer */}
+                      <div className="bg-lectra-card p-8 rounded-3xl border border-lectra-primary/10 relative overflow-hidden group col-span-1">
+                        <Brain className="absolute -right-8 -bottom-8 size-40 opacity-5 text-lectra-primary group-hover:scale-110 transition-transform" />
+                        <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-lectra-text">
+                          <Sparkles className="size-4 text-lectra-primary" />
+                          Weekly Summary
                         </h4>
-                        <p className="text-xs text-slate-500 mb-8 leading-relaxed">Turn hour-long lectures into distilled, 5-minute reading experiences for your students automatically.</p>
-                        <button className="px-6 py-2.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Generate Summary</button>
+                        <p className="text-xs text-lectra-muted mb-8 leading-relaxed">Generate a comprehensive AI summary of this week's classroom activity, topics covered, and student progress.</p>
+                        <button
+                          onClick={handleAiSummary}
+                          disabled={aiLoading === 'summary'}
+                          className="px-6 py-2.5 bg-lectra-primary/10 text-lectra-primary hover:bg-lectra-primary hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 relative z-10"
+                        >
+                          {aiLoading === 'summary' ? 'Generating...' : 'Generate Summary'}
+                        </button>
                       </div>
-                      <div className="bg-slate-900 p-8 rounded-3xl border border-primary/10 relative overflow-hidden group col-span-1">
-                        <Activity className="absolute -right-8 -bottom-8 size-40 opacity-5 text-emerald-500 group-hover:scale-110 transition-transform" />
-                        <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
-                          <TrendingUp className="size-4 text-emerald-500" />
+                      {/* Smart Quizzing */}
+                      <div className="bg-lectra-card p-8 rounded-3xl border border-lectra-primary/10 relative overflow-hidden group col-span-1">
+                        <Activity className="absolute -right-8 -bottom-8 size-40 opacity-5 text-lectra-success group-hover:scale-110 transition-transform" />
+                        <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-lectra-text">
+                          <TrendingUp className="size-4 text-lectra-success" />
                           Smart Quizzing
                         </h4>
-                        <p className="text-xs text-slate-500 mb-8 leading-relaxed">Let AI generate context-aware quizzes based specifically on the live discussions and questions from today.</p>
-                        <button className="px-6 py-2.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Create Quiz</button>
+                        <p className="text-xs text-lectra-muted mb-8 leading-relaxed">Let AI generate context-aware quizzes based on your class assignments and topics covered.</p>
+                        <button
+                          onClick={handleAiQuiz}
+                          disabled={aiLoading === 'quiz'}
+                          className="px-6 py-2.5 bg-lectra-success/10 text-lectra-success hover:bg-lectra-success hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 relative z-10"
+                        >
+                          {aiLoading === 'quiz' ? 'Creating...' : 'Create Quiz'}
+                        </button>
                       </div>
-                      <div className="bg-slate-900 p-8 rounded-3xl border border-primary/10 relative overflow-hidden group col-span-1">
-                        <Mail className="absolute -right-8 -bottom-8 size-40 opacity-5 text-orange-500 group-hover:scale-110 transition-transform" />
-                        <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
-                          <Zap className="size-4 text-orange-500" />
-                          Insight Exports
+                      {/* Insight Export */}
+                      <div className="bg-lectra-card p-8 rounded-3xl border border-lectra-primary/10 relative overflow-hidden group col-span-1">
+                        <Mail className="absolute -right-8 -bottom-8 size-40 opacity-5 text-lectra-warning group-hover:scale-110 transition-transform" />
+                        <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-lectra-text">
+                          <Zap className="size-4 text-lectra-warning" />
+                          Pedagogical Report
                         </h4>
-                        <p className="text-xs text-slate-500 mb-8 leading-relaxed">Export pedagogical insights to share with department heads or for your own academic record keeping.</p>
-                        <button className="px-6 py-2.5 bg-orange-500/10 text-orange-500 hover:bg-orange-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Export Report</button>
+                        <p className="text-xs text-lectra-muted mb-8 leading-relaxed">Export a detailed pedagogical insights report covering engagement, topic coverage, and recommendations.</p>
+                        <button
+                          onClick={handleAiInsightExport}
+                          disabled={aiLoading === 'export'}
+                          className="px-6 py-2.5 bg-lectra-warning/10 text-lectra-warning hover:bg-lectra-warning hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 relative z-10"
+                        >
+                          {aiLoading === 'export' ? 'Generating...' : 'Generate Report'}
+                        </button>
                       </div>
                     </div>
+
+                    {/* AI Output Display */}
+                    {(aiSummary || aiQuiz || aiInsightReport) && (
+                      <div className="space-y-6">
+                        {aiSummary && (
+                          <div className="bg-lectra-card border border-lectra-border rounded-3xl p-8">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-lg font-bold text-lectra-text flex items-center gap-2">
+                                <Sparkles className="size-4 text-lectra-primary" />
+                                Weekly Summary
+                              </h4>
+                              <button onClick={() => setAiSummary('')} className="text-lectra-muted hover:text-lectra-text transition-colors">
+                                <X className="size-4" />
+                              </button>
+                            </div>
+                            <div className="prose prose-invert prose-sm max-w-none max-h-96 overflow-y-auto custom-scrollbar p-6 bg-lectra-background/50 rounded-2xl border border-lectra-border/50">
+                              <ReactMarkdown>{aiSummary}</ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                        {aiQuiz && (
+                          <div className="bg-lectra-card border border-lectra-border rounded-3xl p-8">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-lg font-bold text-lectra-text flex items-center gap-2">
+                                <TrendingUp className="size-4 text-lectra-success" />
+                                Generated Quiz
+                              </h4>
+                              <button onClick={() => setAiQuiz(null)} className="text-lectra-muted hover:text-lectra-text transition-colors">
+                                <X className="size-4" />
+                              </button>
+                            </div>
+                            <div className="prose prose-invert prose-sm max-w-none max-h-96 overflow-y-auto custom-scrollbar p-6 bg-lectra-background/50 rounded-2xl border border-lectra-border/50">
+                              <ReactMarkdown>{typeof aiQuiz === 'string' ? aiQuiz : JSON.stringify(aiQuiz, null, 2)}</ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                        {aiInsightReport && (
+                          <div className="bg-lectra-card border border-lectra-border rounded-3xl p-8">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-lg font-bold text-lectra-text flex items-center gap-2">
+                                <Zap className="size-4 text-lectra-warning" />
+                                Pedagogical Insights Report
+                              </h4>
+                              <button onClick={() => setAiInsightReport('')} className="text-lectra-muted hover:text-lectra-text transition-colors">
+                                <X className="size-4" />
+                              </button>
+                            </div>
+                            <div className="prose prose-invert prose-sm max-w-none max-h-96 overflow-y-auto custom-scrollbar p-6 bg-lectra-background/50 rounded-2xl border border-lectra-border/50">
+                              <ReactMarkdown>{aiInsightReport}</ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               case 'Content Library':
