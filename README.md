@@ -1,6 +1,6 @@
-# 🎓 Nexus Classroom
+# 🎓 Lectra Classroom
 
-Nexus Classroom is a state-of-the-art, full-stack Virtual Classroom Platform designed to provide a premium and interactive learning experience. It combines high-performance video conferencing, real-time collaboration, and AI-powered educational insights.
+Lectra Classroom is a state-of-the-art, full-stack Virtual Classroom Platform designed to provide a premium and interactive learning experience. It combines high-performance video conferencing, real-time collaboration, and AI-powered educational insights.
 
 ## 🚀 Key Features
 
@@ -45,7 +45,7 @@ Nexus Classroom is a state-of-the-art, full-stack Virtual Classroom Platform des
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/MRvandals4vage/Lectra.git
-   cd nexus-classroom
+   cd Lectra
    ```
 
 2. **Install Root & Frontend Dependencies**:
