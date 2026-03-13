@@ -8,9 +8,9 @@ const router = express.Router();
 router.use(authenticateToken);
 
 router.post('/create', createMeeting);
-router.get('/:classId', getMeetingsByClass);
 router.get('/token/:roomId', getToken);
 router.get('/messages/:roomId', getMeetingMessages);
 router.post('/analyze', analyzeMeeting);
+router.get('/class/:classId', getMeetingsByClass);
 
 export default router;

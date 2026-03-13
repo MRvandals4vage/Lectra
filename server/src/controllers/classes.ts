@@ -200,3 +200,151 @@ export const getClassmates = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Error fetching classmates' });
   }
 };
+
+export const getStudentDetails = async (req: AuthRequest, res: Response) => {
+  const { classId, studentId } = req.params;
+  try {
+    // Get student info
+    const { data: student, error: studentError } = await supabase
+      .from('users')
+      .select('id, name, email, role, created_at')
+      .eq('id', studentId)
+      .single();
+
+    if (studentError) throw studentError;
+
+    // Get all assignments for this class
+    const { data: assignments, error: assignError } = await supabase
+      .from('assignments')
+      .select('id, title, description, due_date, max_score, created_at')
+      .eq('class_id', classId)
+      .order('created_at', { ascending: false });
+
+    if (assignError) throw assignError;
+
+    // Get submissions by this student for assignments in this class
+    const assignmentIds = (assignments || []).map((a: any) => a.id);
+    let studentSubmissions: any[] = [];
+    if (assignmentIds.length > 0) {
+      const { data: subs, error: subError } = await supabase
+        .from('submissions')
+        .select('*, assignments(id, title, max_score, due_date)')
+        .eq('student_id', studentId)
+        .in('assignment_id', assignmentIds);
+
+      if (subError) throw subError;
+      studentSubmissions = subs || [];
+    }
+
+    // Get student metrics if they exist
+    const { data: metrics } = await supabase
+      .from('student_metrics')
+      .select('*')
+      .eq('class_id', classId)
+      .eq('student_id', studentId)
+      .single();
+
+    // Get meeting attendance (count of meetings this student joined)
+    const { data: meetings } = await supabase
+      .from('meetings')
+      .select('id, room_id, created_at')
+      .eq('class_id', classId);
+
+    // Calculate stats
+    const totalAssignments = assignments?.length || 0;
+    const submittedCount = studentSubmissions.length;
+    const gradedSubmissions = studentSubmissions.filter((s: any) => s.grade !== null && s.grade !== undefined);
+    const avgGrade = gradedSubmissions.length > 0
+      ? Math.round(gradedSubmissions.reduce((acc: number, s: any) => acc + (s.grade || 0), 0) / gradedSubmissions.length)
+      : null;
+    const completionRate = totalAssignments > 0 ? Math.round((submittedCount / totalAssignments) * 100) : 100;
+
+    res.json({
+      student,
+      stats: {
+        totalAssignments,
+        submittedCount,
+        gradedCount: gradedSubmissions.length,
+        avgGrade,
+        completionRate,
+        totalMeetings: meetings?.length || 0,
+        engagementScore: metrics?.engagement_score || 0,
+        attendanceRate: metrics?.attendance_rate || 0,
+      },
+      submissions: studentSubmissions,
+      assignments: assignments || [],
+    });
+  } catch (error: any) {
+    console.error('Get Student Details Error:', error.message);
+    res.status(500).json({ message: 'Error fetching student details' });
+  }
+};
+
+export const getStudentsWithStats = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params; // class ID
+  try {
+    // Get all enrolled students
+    const { data: enrollments, error: enrollError } = await supabase
+      .from('enrollments')
+      .select('users:student_id(id, name, email, created_at)')
+      .eq('class_id', id);
+
+    if (enrollError) throw enrollError;
+
+    const students = (enrollments || []).map((e: any) => e.users);
+
+    // Get all assignments for this class
+    const { data: assignments } = await supabase
+      .from('assignments')
+      .select('id, title, max_score')
+      .eq('class_id', id);
+
+    const totalAssignments = assignments?.length || 0;
+    const assignmentIds = (assignments || []).map((a: any) => a.id);
+
+    // Get all submissions for assignments in this class
+    let allSubmissions: any[] = [];
+    if (assignmentIds.length > 0) {
+      const { data: subs } = await supabase
+        .from('submissions')
+        .select('student_id, grade, assignment_id')
+        .in('assignment_id', assignmentIds);
+      allSubmissions = subs || [];
+    }
+
+    // Get student metrics for this class
+    const { data: metricsData } = await supabase
+      .from('student_metrics')
+      .select('student_id, engagement_score, attendance_rate')
+      .eq('class_id', id);
+
+    // Combine data
+    const studentsWithStats = students.map((student: any) => {
+      const studentSubs = allSubmissions.filter((s: any) => s.student_id === student.id);
+      const gradedSubs = studentSubs.filter((s: any) => s.grade !== null && s.grade !== undefined);
+      const avgGrade = gradedSubs.length > 0
+        ? Math.round(gradedSubs.reduce((acc: number, s: any) => acc + (s.grade || 0), 0) / gradedSubs.length)
+        : null;
+      const completionRate = totalAssignments > 0
+        ? Math.round((studentSubs.length / totalAssignments) * 100)
+        : 100;
+      const metrics = (metricsData || []).find((m: any) => m.student_id === student.id);
+
+      return {
+        ...student,
+        submittedCount: studentSubs.length,
+        gradedCount: gradedSubs.length,
+        avgGrade,
+        totalAssignments,
+        completionRate,
+        engagementScore: metrics?.engagement_score || 0,
+        attendanceRate: metrics?.attendance_rate || 0,
+      };
+    });
+
+    res.json(studentsWithStats);
+  } catch (error: any) {
+    console.error('Get Students With Stats Error:', error.message);
+    res.status(500).json({ message: 'Error fetching students with stats' });
+  }
+};

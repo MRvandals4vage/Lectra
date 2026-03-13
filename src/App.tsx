@@ -29,14 +29,19 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-dark flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-lectra-background flex items-center justify-center font-outfit text-lectra-text">
+        <div className="flex flex-col items-center gap-6">
+          <div className="size-16 bg-lectra-primary/20 rounded-3xl flex items-center justify-center animate-pulse">
+            <div className="size-8 bg-lectra-primary rounded-xl animate-spin" />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-lectra-muted">Loading Classroom...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background-dark text-slate-100 selection:bg-primary/30">
+    <div className="min-h-screen bg-lectra-background text-lectra-text font-outfit selection:bg-lectra-primary/30">
       <AnimatePresence mode="wait">
         {screen === 'landing' && (
           <motion.div
